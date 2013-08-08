@@ -1,24 +1,29 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-#   Copyright (C) 2013 Jan-Philip Gehrcke
+# Copyright (C) 2013 Jan-Philip Gehrcke, TU Dresden
+# http://gehrcke.de
 #
-#   Licensed under the Apache License, Version 2.0 (the "License");
-#   you may not use this file except in compliance with the License.
-#   You may obtain a copy of the License at
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
 #
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#   limitations under the License.
-
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
 
 import os
 import sys
-import json
 import yaml
 import codecs
 import argparse
@@ -36,8 +41,9 @@ log.setLevel(logging.INFO)
 
 
 class Ambmask(object):
-    """Ambmask object prepares ambmask runs with equal Amber topology and
-    coordinate file and printlevel/outformat settings.
+    """Ambmask object prepares ambmask runs based on a single
+    Amber topology and coordinate file as well as printlevel /
+    output format settings.
     """
     def __init__(
             self,
@@ -53,10 +59,12 @@ class Ambmask(object):
         self._printlevel = printlevel
         self._outformat = outformat
 
-    def _run(self):
+    def _run(self, maskstring)
         """Run subprocess. If ambmask exits with return code other than 0,
         exit this program. Otherwise return ambmask's stdout.
         """
+        # Set maskstring for string representation.
+        self._maskstring = maskstring
         args = ["ambmask",
             "-p",
             self._topology_file_path,
@@ -67,13 +75,13 @@ class Ambmask(object):
             "-out",
             self._outformat,
             "-find",
-            self._maskstring
+            maskstring
             ]
         try:
             sp = Popen(args, stdout=PIPE, stderr=PIPE)
         except OSError as e:
-            sys.exit(("Error executing ambpdb. Is it in your PATH? Specific "
-                "error: '%s'" % e))
+            sys.exit(("Error executing ambpdb. Is it in your PATH? "
+                "Error message: '%s'" % e))
         out, err = sp.communicate()
         returncode = sp.returncode
         if returncode != 0:
@@ -87,8 +95,7 @@ class Ambmask(object):
     def residue_ids_by_name(self, resname):
         """For a given residue name, return a list of matching residue IDs.
         """
-        self._maskstring = ":%s" % resname
-        ambmask_stdout = self._run()
+        ambmask_stdout = self._run(":%s" % resname)
         if not ambmask_stdout:
             log.debug("%s did not write stdout." % self)
             return None
@@ -115,8 +122,7 @@ class Ambmask(object):
         Return `None` if no match. Exit the program in case of unexpected
         output.
         """
-        self._maskstring = ":%s@%s" % (residue_id, atom_name)
-        ambmask_stdout = self._run()
+        ambmask_stdout = self._run(":%s@%s" % (residue_id, atom_name))
         if not ambmask_stdout:
             log.debug("%s did not write stdout." % self)
             return None
@@ -142,74 +148,6 @@ class Ambmask(object):
             self._maskstring,
             self._printlevel,
             self._outformat))
-
-
-def restraint_for_residue_id_and_atom_group(resid, atom_group, restraint):
-    log.info("Extracting atom IDs for torsional group in residue '%s'" % resid)
-    log.info("Atom group: %s" % atom_group)
-    log.info("Restraint: %s" % restraint)
-    atom_ids = []
-    for atom_name in atom_group:
-        atom_id = AMBMASK.atom_id_by_residue_id_and_atom_name(resid, atom_name)
-        if atom_id is None:
-            sys.exit("No atom match for atom %s in group. Exit." % atom_name)
-        atom_ids.append(atom_id)
-    correspondance = zip(atom_group, atom_ids)
-    log.info("Correspondance: %s" % correspondance)
-    atom_number_string = ", ".join(str(a) for a in atom_ids)
-    iats = "iat=%s" % atom_number_string
-    restraint_string="""
-&rst
-    %s,
-    %s,
-&end
-""" % (iats, restraint)
-    return restraint_string
-
-
-def main():
-    global AMBMASK
-    try:
-        json_input_file = sys.argv[1]
-        amber_topology_file = sys.argv[2]
-        amber_coordinate_file = sys.argv[3]
-    except IndexError:
-        sys.stderr.write("Argument error.\n")
-        sys.exit("%s\n" % USAGE)
-    AMBMASK = Ambmask(amber_topology_file, amber_coordinate_file)
-
-    log.info("Reading '%s'" % json_input_file)
-    with codecs.open(json_input_file, encoding="utf-8") as f:
-        torsion_configs = json.loads(f.read())
-    log.debug("JSON data structure: \n %r" % torsion_configs)
-
-    for config in torsion_configs:
-        for residue_name in config["residue_names"]:
-            log.info("Extracting residue IDs for residue '%s'" % residue_name)
-            resids = AMBMASK.residue_ids_by_name(residue_name)
-            if resids is None:
-                log.info("No such residue in the system. Skip.")
-                continue
-            log.info("Residue IDs: %s" % ", ".join("%s" % r for r in resids))
-            for resid in resids:
-                for (atom_group, restraint) in config["torsion_groups"]:
-                    log.info("Building restraint string for group %s" %
-                        atom_group)
-                    restraint_string = restraint_for_residue_id_and_atom_group(
-                        resid,
-                        atom_group,
-                        restraint
-                        )
-                    print restraint_string
-
-
-AMBMASK = None
-USAGE="""
-Usage:
-%s json_config_file amber_topology_file amber_coordinate_file
-""" % os.path.basename(sys.argv[0])
-
-
 
 
 # The toplevel config values contain dihedral names. A dihedral name must
@@ -240,9 +178,12 @@ example_config="""
         atoms: [C1, O4, C4, H4]
 """
 
+# Create name for global ambmask object since within one program 
+# run the Amber topology and coordinate files as well as ambmask
+# settings are conserved.
 ambmask = None
 
-def main2():
+def main():
     global ambmask
     parser = argparse.ArgumentParser(description='Dickes Tool.')
     parser.add_argument('topologyfile', action="store")
@@ -252,18 +193,17 @@ def main2():
     parser.add_argument('-i', '--inverse-search',
         action='store_true', default=False)
     options = parser.parse_args()
-    print options
+
     ambmask = Ambmask(
         topology_file_path=options.topologyfile,
         coordinate_file_path=options.coordinatefile)
-
-
 
     with codecs.open(options.configfile, encoding="utf-8") as f:
         c = f.read()
         log.info("Read configuration file: \n%s" % c)
         config = yaml.load(c)
     validate_config(config)
+
     resname_resids_mapping = get_resids_for_resnames(config)
     log.info("Residue IDs as identified by ambmask: %s" %
         resname_resids_mapping)
@@ -271,9 +211,8 @@ def main2():
         config,
         resname_resids_mapping,
         options.inverse_search)
-    dihedral_prettystring = "\n".join(str(d) for d in dihedrals)
     log.info("Identified %s dihedrals: \n%s" % (
-        len(dihedrals), dihedral_prettystring))
+        len(dihedrals), "\n".join(str(d) for d in dihedrals)))
 
 
 class Atom(object):
@@ -432,8 +371,6 @@ def identify_dihedrals(config, resname_resids_mapping, inverse):
     return dihedrals
 
 
-
-
 def get_resids_for_resnames(config):
     """Return a dictionary containing the residue IDs for every residue
     ocurring in any dihedral.
@@ -476,6 +413,6 @@ def window(iterable, n):
 
 
 if __name__ == "__main__":
-    main2()
+    main()
 
 
