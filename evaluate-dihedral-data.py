@@ -24,7 +24,9 @@
 
 import os
 import sys
+import StringIO
 import argparse
+import itertools
 import pandas as pd
 import numpy as np
 import logging
@@ -68,24 +70,40 @@ def main():
         assert len(suffixes_for_2d) == 2, "Exactly two suffixes allowed."
 
 
+def merge_dataframe_by_suffix(df, suffixes_for_merge):
+    column_groups = {sfx:[] for sfx in suffixes_for_merge}
+    for sfx in suffixes_for_merge:
+        for c in df.columns:
+            if c.endswith(sfx):
+                log.info("Column '%s' matches merge suffix '%s'.", c, sfx)
+                log.debug("Append data series (column) to groups for merge.")
+                column_groups[sfx].append(df[c])
+                log.debug("Delete column from original dataframe.")
+                del df[c]
+
+    print "groups:"
+    for sfx, series_list in column_groups.iteritems():
+        print "%s: %s columns" % (sfx, len(series_list))
+        for s in series_list:
+            print " type: %s" % type(s)
+            print s.head()
+
+
 def parse_dihed_datafile():
     log.info("Reading '%s' to pandas dataframe.", options.dihedraldatafile)
-    # `index_col=False` is required, otherwise indices are NaN.
-    df = pd.read_csv(
-        options.dihedraldatafile,
-        delim_whitespace=True,
-        index_col=False)
+    # Bring output of cpptraj into classical CSV shape.
+    with open(options.dihedraldatafile) as f:
+        lines = f.readlines()
+    # Remove leading '#' in first line, strip white spaces and replace
+    # whitespace delimiter with comma.
+    firstline = ','.join(lines[0].strip().strip('#').split())
+    otherlines = (','.join(l.strip().split()) for l in lines[1:])
+    csv_buffer = StringIO.StringIO()
+    csv_buffer.write("%s\n" % firstline)
+    csv_buffer.write("\n".join(otherlines))
+    csv_buffer.seek(0)
+    df = pd.read_csv(csv_buffer)
     log.debug("Columns read:\n%s", "\n".join(c for c in df.columns))
-    # We expect the first column name be prefixed with a '#' character.
-    # Get rid of that (renaming the columns requires re-assigning the entire
-    # `df.columns` list or using the convoluted `rename` method.)
-    log.debug("Filtering column names.")
-    columnnames = list(df.columns[:])
-    for i, name in enumerate(columnnames):
-        if name.startswith('#'):
-            columnnames[i] = name[1:]
-    df.columns = columnnames
-    log.debug("Columns after filtering:\n%s" % "\n".join(c for c in df.columns))
     log.debug("Dataframe head:\n%s", df.head())
     return df
 
