@@ -54,12 +54,18 @@ def main():
             "names (headers in the first line) are interpreted as angle data "
             "set names."
             ))
-    parser.add_argument('-t', '--two-dimensional', action="store",
-        metavar="nameX,nameY",
+    parser.add_argument('-t', '--two-dimensional', action="store", nargs='+',
+        metavar=("'nameX,nameY'", "'title'"),
         help=("Comma-separated list of two angle data set names to be plotted "
-            "in a two-dimensional heat map. Names can be used from original "
+            "in a two-dimensional heat map histogram. Names can be used from "
+            "original "
             "data or from merged data sets. Data corresponding to the first "
-            "name will be placed on the horizontal axis."))
+            "name will be placed on the horizontal axis. If a data set name "
+            "contains one of the strings ['psi', 'phi'], the axis label will "
+            "be set to 'greek_letter / degrees' correspondingly. A second "
+            "argument can be provided to the option containing a descriptive "
+            "title for the entire plot. Other arguments to this option are "
+            "ignored."))
     parser.add_argument('-m', '--merge', nargs=2, action="append",
         metavar=("name", "'wildcard'"),
         help=("This option consumes the following two arguments. The first "
@@ -112,11 +118,17 @@ def main():
     if options.two_dimensional:
         # Validate user-given input regarding 2D histogram plotting.
         log.info("2D plotting option was specified. Validate.")
-        x_y_names_for_2d_plot = options.two_dimensional.split(',')
+        # One argument to this option is required. It must contains a comma-
+        # separated list of two data set names.
+        x_y_names_for_2d_plot = options.two_dimensional[0].split(',')
         if not len(x_y_names_for_2d_plot) == 2:
             sys.exit(("Exactly two comma-separated data set names must be "
                 "provided as an argument to the 2D plotting option. "
                 "%s found." % len(x_y_names_for_2d_plot)))
+        # One more argument is optional, if given it contains the plot title.
+        title_for_2d_plot = None
+        if len(options.two_dimensional) > 1:
+            title_for_2d_plot = options.two_dimensional[1]
 
 
     # Read raw data to pandas DataFrame.
@@ -130,20 +142,21 @@ def main():
     # Plot 2D histogram if applicable.
     if x_y_names_for_2d_plot:
         histogram_from_dataset_names(
-            x_y_names_for_2d_plot, original_df, merged_df)
+            x_y_names_for_2d_plot,
+            title_for_2d_plot,
+            original_df, merged_df)
 
 
-
-def histogram_from_dataset_names(names, original_df, merged_df):
+def histogram_from_dataset_names(dataset_names, title, original_df, merged_df):
     """Currently, `names` must be of length 1 (1D histogram) or 2 (2D hist).
-    The data sets are first used in the merged dataframe, then in the original
-    one. If two names are provided and found in one or the other dataframe,
-    the datasets are validated to be of the same length before plotting. If
-    two data set names are provided, the first data set ends up on the x-axis
-    (horizontal axis) of the 2D histogram.
+    The data sets are first searched for in the merged dataframe, then in the
+    original one. If two names are provided and found (in one or the other
+    dataframe), the datasets are validated to be of the same length before
+    plotting. If two data set names are provided, the first data set ends up on
+    the x-axis (horizontal axis) of the 2D histogram.
     """
     log.info("Instructed to plot histogram from data set(s) with name(s) %s.",
-        names)
+        dataset_names)
     def get_column(name):
         if name in merged_df:
             log.info("Found set '%s' in merged data set. Use it.", name)
@@ -155,10 +168,10 @@ def histogram_from_dataset_names(names, original_df, merged_df):
             "exist in merged or original data.", name))
         sys.exit(1)
 
-    if len(names) == 1:
+    if len(dataset_names) == 1:
         raise NotImplementedError("1D histogram is yet to be implemented.")
-    elif len(names) == 2:
-        series_x, series_y = [get_column(n) for n in names]
+    elif len(dataset_names) == 2:
+        series_x, series_y = [get_column(n) for n in dataset_names]
         log.info(("Angle data set names to be used for 2D histogram: '%s' "
             "(horizontal axis (x)) and '%s' (vertical axis, (y))." % (
                 series_x.name, series_y.name)))
@@ -169,7 +182,11 @@ def histogram_from_dataset_names(names, original_df, merged_df):
                 "sets different in length."))
             sys.exit(1)
         log.info("Plot it (using matplotlib).")
-        t = "dihedral '%s' vs. dihedral '%s'" % (series_x.name, series_y.name)
+        if title is None:
+            t = "dihedral '%s' vs. dihedral '%s'" % (
+                series_x.name, series_y.name)
+        else:
+            t = title
         create_2d_hist(
             series_x,
             series_y,
@@ -273,16 +290,5 @@ def parse_dihed_datafile():
     return df
 
 
-
-
-
-
-
-
-
-
-
 if __name__ == "__main__":
     main()
-
-
