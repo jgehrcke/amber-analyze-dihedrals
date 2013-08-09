@@ -56,6 +56,7 @@ def main():
     options = parser.parse_args()
     df = parse_dihed_datafile()
 
+    df_merged_series = None
     if options.merge:
         suffixes_for_merge = options.merge.split(',')
         log.info("Angle name suffixes for merge:\n%s",
@@ -63,10 +64,29 @@ def main():
         df_merged_series = merge_dataframe_by_suffix(df, suffixes_for_merge)
 
     if options.two_dimensional:
-        suffixes_for_2d = options.two_dimensional.split(',')
+        sfx2d_1, sfx2d_2 = options.two_dimensional.split(',')
         log.info(("Angle name suffixes for 2D histogram for matching angle "
-            "name prefixes:\n%s"), "\n".join(suffixes_for_merge))
-        assert len(suffixes_for_2d) == 2, "Exactly two suffixes allowed."
+            "name prefixes:\n%s"), "\n".join([sfx2d_1, sfx2d_2]))
+        if df_merged_series:
+            if all(s in df_merged_series for s in [sfx2d_1, sfx2d_2]):
+                log.info("Found 2D plot suffixes (%s,%s) in merged data set.",
+                    sfx2d_1, sfx2d_2)
+                create_2d_hist(df_merged_series, sfx2d_1, sfx2d_2)
+
+
+def create_2d_hist(df, cname_x, cname_y):
+    """Create a 2D histogram (heat map) from data in DataFrame `df` (columns
+    `chead1` and `chead2`).
+    """
+    df_cnames = ",".join("%r" % c for c in df.columns)
+    log.debug("Creating 2D histogram from DataFrame (columns '%s')",
+        df_cnames)
+    log.debug("Horizontal axis: '%s', vertical axis: '%s'", cname_x, cname_y)
+    pyplot.hist2d(df[cname_x].values, df[cname_y].values, bins=20)
+    pyplot.xlabel("%s in degrees" % cname_x)
+    pyplot.ylabel("%s in degrees" % cname_y)
+    pyplot.colorbar()
+    pyplot.show()
 
 
 def merge_dataframe_by_suffix(df, suffixes_for_merge):
