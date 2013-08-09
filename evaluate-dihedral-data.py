@@ -175,7 +175,10 @@ def main():
                 original_df,
                 merged_series)
 
+    log.info("Data processing and plotting finished.")
     if open_figure_windows:
+        log.info(("There are figures ready for being displayed. Calling "
+            "pyplot.show()."))
         pyplot.show()
 
 
@@ -340,8 +343,9 @@ def merge_dataseries_by_wildcards(df, merge_groups):
     merged_series =  {s.name:s for s in merged_series_list}
     #log.info("Created DataFrame from merged series. Details:\n%s",
     #    df_merged_series)
-    log.info("Created dictionary from merged series. Details:\n%s",
-        merged_series)
+    log.info("Created dictionary from merged series. Details:")
+    for n, s in merged_series.iteritems():
+        log.info("    series name: '%s', series length: %s", n, len(s))
     #log.info("Head:\n%s", df_merged_series.head())
     return merged_series
 
