@@ -49,18 +49,42 @@ def main():
     parser.add_argument('dihedraldatafile', action="store",
         help=("Path to data file as produced by cpptraj's 'dihedral' command. "
             "Might contain multiple columns (cpptraj 'datasets'). Column "
-            "names (headers in the first line) are interpreted as angle names."
+            "names (headers in the first line) are interpreted as angle data "
+            "set names."
             ))
     parser.add_argument('-t', '--two-dimensional', action="store",
-        metavar="sfx1,sfx2",
-        help=("Comma-separated list of two angle name suffixes to be plotted "
-            "in a two-dimensional heat map if prefix matches (angle names "
-            "must have common prefix and only differ in given suffix)."))
-    parser.add_argument('-m', '--merge', action="store",
-        metavar="sfx1,...",
-        help=("Comma-separated list of angle name suffixes. For each suffix "
-            "given, a merged data set will be created from all angles with "
-            "this suffix in their names (prefix is ignored)."))
+        metavar="name1,name2",
+        help=("Comma-separated list of two angle data set names to be plotted "
+            "in a two-dimensional heat map. Names can be used from original "
+            "data or from merged data sets."))
+    parser.add_argument('-m', '--merge', nargs=2, action="append",
+        metavar=("name", "'wildcard'"),
+        help=("This option consumes the following two arguments. The first "
+            "defines the name of the merged data set. The second must be a "
+            "Unix shell-style wildcard that will be matched against original "
+            "data set names. The values "
+            "of an original data set are added to the merged data set (of "
+            "given name) if the name of the original data set matches the "
+            "wildcard. The option can be "
+            "used multiple times. Multiple occurrences of this option "
+            "can share the merged data set name (leading to a single merged "
+            "data set based on multiple wildcards). Multiple occurrences "
+            "of this option must not share the same wildcard. If an "
+            "angle name matches multiple wildcards, it is matched with "
+            "the first one as specified on the command line. Wildcards "
+            "are case-sensitive. Example: "
+            "--merge typeA 'ARG*LYS*psi' --merge typeA 'ARG?CYX?psi'. This "
+            "creates one merged data set with name 'typeA' and adds data of "
+            "original angle data sets whose names match either the first or "
+            "the second wildcard. Make sure to quote wildcards. Reminder: "
+            "In a wildcard, * matches everything while ? matches a single "
+            "character. Docs: http://docs.python.org/2/library/fnmatch.html"
+            ""
+            ))
+
+
+
+
     parser.add_argument('-b', '--bins', action="store", type=int, default=20,
         help="Number of histogram bins for each dimension. Default: 20.")
     options = parser.parse_args()
@@ -83,6 +107,17 @@ def main():
                     sfx2d_1, sfx2d_2)
                 create_2d_hist(df_merged_series, sfx2d_1, sfx2d_2)
 
+def util_greek_map(a):
+    """If string `a` is in `translate` mapping, replace it with greek
+    representation.
+    """
+    translate = {
+        'phi': r'$\phi$',
+        'psi': r'$\psi$'
+        }
+    if a in translate:
+        return translate[a]
+    return a
 
 def create_2d_hist(df, cname_x, cname_y):
     """Create a 2D histogram (heat map) from data in DataFrame `df` (columns
@@ -93,8 +128,8 @@ def create_2d_hist(df, cname_x, cname_y):
         df_cnames)
     log.debug("Horizontal axis: '%s', vertical axis: '%s'", cname_x, cname_y)
     pyplot.hist2d(df[cname_x].values, df[cname_y].values, bins=options.bins)
-    pyplot.xlabel("%s in degrees" % cname_x)
-    pyplot.ylabel("%s in degrees" % cname_y)
+    pyplot.xlabel("%s / degrees" % util_greek_map(cname_x))
+    pyplot.ylabel("%s / degrees" % util_greek_map(cname_y))
     pyplot.colorbar()
     pyplot.show()
 
