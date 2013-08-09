@@ -167,13 +167,12 @@ def main():
             original_df, merge_groups)
 
     # Plot 2D histogram if applicable.
-    if twodim_hist_infos:
-        for twodim_hist_info in twodim_hist_infos:
-            histogram_from_dataset_names(
-                twodim_hist_info['x_y_names'],
-                twodim_hist_info['title'],
-                original_df,
-                merged_series)
+    for twodim_hist_info in twodim_hist_infos:
+        histogram_from_dataset_names(
+            twodim_hist_info['x_y_names'],
+            twodim_hist_info['title'],
+            original_df,
+            merged_series)
 
     log.info("Data processing and plotting finished.")
     if open_figure_windows:
