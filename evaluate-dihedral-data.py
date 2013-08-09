@@ -43,16 +43,26 @@ options = None
 
 def main():
     global options
-    parser = argparse.ArgumentParser(description='Dickes Tool.')
+    parser = argparse.ArgumentParser(
+        description=("Program for evaluating torsion angle data sets as "
+            "created by cpptraj (from AmberTools 13)."))
     parser.add_argument('dihedraldatafile', action="store",
-        help="Datafile as produces by the 'dihedral' command of cpptraj.")
+        help=("Path to data file as produced by cpptraj's 'dihedral' command. "
+            "Might contain multiple columns (cpptraj 'datasets'). Column "
+            "names (headers in the first line) are interpreted as angle names."
+            ))
     parser.add_argument('-t', '--two-dimensional', action="store",
+        metavar="sfx1,sfx2",
         help=("Comma-separated list of two angle name suffixes to be plotted "
-            "in a two-dimensional heat map if prefix matches."))
+            "in a two-dimensional heat map if prefix matches (angle names "
+            "must have common prefix and only differ in given suffix)."))
     parser.add_argument('-m', '--merge', action="store",
+        metavar="sfx1,...",
         help=("Comma-separated list of angle name suffixes. For each suffix "
             "given, a merged data set will be created from all angles with "
-            "this suffix in their names, the prefix is ignored."))
+            "this suffix in their names (prefix is ignored)."))
+    parser.add_argument('-b', '--bins', action="store", type=int, default=20,
+        help="Number of histogram bins for each dimension. Default: 20.")
     options = parser.parse_args()
     df = parse_dihed_datafile()
 
@@ -82,7 +92,7 @@ def create_2d_hist(df, cname_x, cname_y):
     log.debug("Creating 2D histogram from DataFrame (columns '%s')",
         df_cnames)
     log.debug("Horizontal axis: '%s', vertical axis: '%s'", cname_x, cname_y)
-    pyplot.hist2d(df[cname_x].values, df[cname_y].values, bins=20)
+    pyplot.hist2d(df[cname_x].values, df[cname_y].values, bins=options.bins)
     pyplot.xlabel("%s in degrees" % cname_x)
     pyplot.ylabel("%s in degrees" % cname_y)
     pyplot.colorbar()
