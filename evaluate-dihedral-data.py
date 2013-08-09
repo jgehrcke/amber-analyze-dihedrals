@@ -22,9 +22,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+import sys
 import StringIO
 import argparse
 import itertools
+from fnmatch import fnmatchcase
 from matplotlib import pyplot
 import pandas as pd
 import numpy as np
@@ -78,27 +80,44 @@ def main():
             "original angle data sets whose names match either the first or "
             "the second wildcard. Make sure to quote wildcards. Reminder: "
             "In a wildcard, * matches everything while ? matches a single "
-            "character. Docs: http://docs.python.org/2/library/fnmatch.html"
+            "character. [ABC] matches A,B, or C."
             ""
             ))
-
-
 
 
     parser.add_argument('-b', '--bins', action="store", type=int, default=20,
         help="Number of histogram bins for each dimension. Default: 20.")
     options = parser.parse_args()
+
+
+
+    if options.merge:
+        # Validate user-given input regarding data merging, provide useful
+        # output.
+        log.info("Merge option was specified %s time(s). Validate.",
+            len(options.merge))
+        merge_names, merge_wildcards = zip(*options.merge)
+        # Make sure there are no wildcard repetitions.
+        if not len(options.merge) == len(set(merge_wildcards)):
+            sys.exit("Repetitions of the same merge wildcard are not allowed.")
+        log.info("Grouping merge option(s) by name.")
+        merge_groups = {n:[] for n in merge_names}
+        for name, wc in zip(merge_names, merge_wildcards):
+            merge_groups[name].append(wc)
+        for n, wcs in merge_groups.iteritems():
+            log.info("Merge group:\n  name: %r\n  wildcard(s): %s)", n, wcs)
+
+    # Read raw data to pandas DataFrame.
     df = parse_dihed_datafile()
 
+    # Merge data if applicable.
     df_merged_series = None
     if options.merge:
-        suffixes_for_merge = options.merge.split(',')
-        log.info("Angle name suffixes for merge:\n%s",
-            "\n".join(suffixes_for_merge))
-        df_merged_series = merge_dataframe_by_suffix(df, suffixes_for_merge)
+        df_merged_series = merge_dataframe_by_suffix(df, merge_groups)
 
+    # Plot 2D histogram if applicable.
     if options.two_dimensional:
-        sfx2d_1, sfx2d_2 = options.two_dimensional.split(',')
+        name_x, name_y = options.two_dimensional.split(',')
         log.info(("Angle name suffixes for 2D histogram for matching angle "
             "name prefixes:\n%s"), "\n".join([sfx2d_1, sfx2d_2]))
         if df_merged_series:
@@ -134,48 +153,52 @@ def create_2d_hist(df, cname_x, cname_y):
     pyplot.show()
 
 
-def merge_dataframe_by_suffix(df, suffixes_for_merge):
-    column_groups = {sfx:[] for sfx in suffixes_for_merge}
-    for sfx in suffixes_for_merge:
-        for c in df.columns:
-            if c.endswith(sfx):
-                log.info("Column '%s' matches merge suffix '%s'.", c, sfx)
-                log.debug("Append data series (column) to groups for merge.")
-                column_groups[sfx].append(df[c])
-                log.debug("Delete column from original dataframe.")
-                del df[c]
+def merge_dataframe_by_suffix(df, merge_groups):
+    """Create and return pandas DataFrame containing only merged data sets.
+    """
+    # Create dictionary containing the names of the merge groups as keys.
+    # For each key, build a list of matching pandas DataSeries as value. A
+    # data series is added to a key when the wildcard corresponding to the
+    # merge group matches the original data set (column) name.
+    log.info("Merging data according to command line options provided.")
+    merge_groups_data_series = {name:[] for name in merge_groups}
+    for name, wildcards in merge_groups.iteritems():
+        for original_name in df.columns:
+            for wc in wildcards:
+                if fnmatchcase(original_name, wc):
+                    log.info("Column '%s' matches merge wildcard '%s'.",
+                        original_name, wc)
+                    log.debug("Append DataSeries to merge group '%s'.", name)
+                    merge_groups_data_series[name].append(df[original_name])
+                    log.debug("Delete column from original DataFrame.")
+                    del df[original_name]
 
     log.info("Groups identified:")
-    for sfx, series_list in column_groups.iteritems():
-        log.info("  suffix '%s': %s columns" , sfx, len(series_list))
+    for name, series_list in merge_groups_data_series.iteritems():
+        log.info("  Name '%s': %s columns", name, len(series_list))
         for i, s in enumerate(series_list):
             log.info("        Column %s: '%s' with %s values.",
                 i, s.name, len(s))
-        #    print " type: %s" % type(s)
-        #    print s.head()
 
     log.info("Merging data within groups.")
-
     merged_series_list = []
-    for sfx, series_list in column_groups.iteritems():
+    for name, series_list in merge_groups_data_series.iteritems():
         merged_series = pd.concat(series_list)
         log.debug("Type of merged_series: %s", type(merged_series))
-        merged_series.name = sfx
+        merged_series.name = name
         log.info("Created series with name '%s' containing %s values.",
             merged_series.name, len(merged_series))
         merged_series_list.append(merged_series)
     df_merged_series = pd.DataFrame(
         {s.name:s.values for s in merged_series_list})
-    log.info("Created dataframe from merges series. Details:\n%s",
+    log.info("Created DataFrame from merged series. Details:\n%s",
         df_merged_series)
     log.info("Head:\n%s", df_merged_series.head())
     return df_merged_series
 
 
-
-
 def parse_dihed_datafile():
-    log.info("Reading '%s' to pandas dataframe.", options.dihedraldatafile)
+    log.info("Reading '%s' to pandas DataFrame.", options.dihedraldatafile)
     # Bring output of cpptraj into classical CSV shape.
     with open(options.dihedraldatafile) as f:
         lines = f.readlines()
@@ -190,6 +213,8 @@ def parse_dihed_datafile():
     df = pd.read_csv(csv_buffer)
     log.debug("Columns read:\n%s", "\n".join(c for c in df.columns))
     log.debug("Dataframe head:\n%s", df.head())
+    log.info("Built pandas DataFrame with %s columns and %s rows.",
+        len(df.columns), len(df))
     return df
 
 
