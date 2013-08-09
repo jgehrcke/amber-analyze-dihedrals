@@ -235,16 +235,20 @@ def main():
     log.info("Identified %s dihedrals: \n%s" % (
         len(dihedrals), "\n".join(str(d) for d in dihedrals)))
     if options.cpptraj_inputfile:
-        log.info("Writing cpptraj input file '%s'..." %
+        log.info("Writing cpptraj input file '%s'." %
             options.cpptraj_inputfile)
         with open(options.cpptraj_inputfile, 'w') as f:
             f.write(generate_cpptraj_input(dihedrals))
+        log.info("Edit '%s' to your needs and run cpptraj like so:\n$ %s",
+            options.cpptraj_inputfile, "cpptraj -p %s -i %s" % (
+                options.topologyfile, options.cpptraj_inputfile))
 
 
 def generate_cpptraj_input(dihedrals):
     general_input_templ = Template(dedent("""\
         trajin $trajectoryfile 1 last\n
         $dihedral_lines
+        precision $cpptraj_outfile 20 4
         datafile $cpptraj_outfile noxcol
         """))
 
@@ -401,17 +405,18 @@ def identify_dihedrals(config, resname_resids_mapping, inverse):
                     # Create descriptive label for current dihedral, containing
                     # the two residues (incl. id and name) as well as the name
                     # of the angle as specified in the config.
-                    # Long version (does not fit in cpptraj output column):
-                    #involved_residues_identifier = "-".join(
-                    #    "%s_%s" % (str(i).zfill(3),n) for i,n in zip(
-                    #    involved_resids, involved_residue_names))
-                    #dihedral_identifier = "%s-%s" % (
-                    #    involved_residues_identifier, angle_name)
-                    # Short version:
+                    # Long version (does not fit in cpptraj standard output
+                    # column width, can be fixed with 'precision' command):
                     involved_residues_identifier = "-".join(
-                        "%s" % str(i).zfill(3) for i in involved_resids)
+                        "%s_%s" % (str(i).zfill(3),n) for i,n in zip(
+                        involved_resids, involved_residue_names))
                     dihedral_identifier = "%s-%s" % (
                         involved_residues_identifier, angle_name)
+                    # Short version:
+                    #involved_residues_identifier = "-".join(
+                    #    "%s" % str(i).zfill(3) for i in involved_resids)
+                    #dihedral_identifier = "%s-%s" % (
+                    #    involved_residues_identifier, angle_name)
                     log.info("Creating dihedral %s involving atoms %s." % (
                         dihedral_identifier, atomnames))
                     log.info("Atom name - residue matching: %s." %
