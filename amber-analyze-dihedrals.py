@@ -29,7 +29,9 @@ import codecs
 import argparse
 import itertools
 import operator
+from string import Template
 from subprocess import Popen, PIPE
+from textwrap import dedent
 import logging
 
 
@@ -59,7 +61,7 @@ class Ambmask(object):
         self._printlevel = printlevel
         self._outformat = outformat
 
-    def _run(self, maskstring)
+    def _run(self, maskstring):
         """Run subprocess. If ambmask exits with return code other than 0,
         exit this program. Otherwise return ambmask's stdout.
         """
@@ -178,20 +180,39 @@ example_config="""
         atoms: [C1, O4, C4, H4]
 """
 
-# Create name for global ambmask object since within one program 
+# Create name for global ambmask object since within one program
 # run the Amber topology and coordinate files as well as ambmask
 # settings are conserved.
 ambmask = None
 
+# Create name for global options object, should contain the options as
+# provided via command line.
+options = None
+
 def main():
     global ambmask
+    global options
     parser = argparse.ArgumentParser(description='Dickes Tool.')
     parser.add_argument('topologyfile', action="store")
     parser.add_argument('coordinatefile', action="store")
     parser.add_argument('trajectoryfile', action="store")
     parser.add_argument('configfile', action="store")
     parser.add_argument('-i', '--inverse-search',
-        action='store_true', default=False)
+        action='store_true', default=False,
+        help=("Inverse dihedral residue unit search direction. Default is "
+              "from large to small residue IDs."))
+    parser.add_argument('--print-atom-ids',
+        action='store_true', default=False,
+        help=("In the output, identify atoms by ID rather than residue ID and "
+               "atom name."))
+    parser.add_argument('-c', '--cpptraj-inputfile', action="store",
+        help=("If provided, a cpptraj input file for dihedral analysis is "
+              "created with the given name."))
+    parser.add_argument('-d', '--cpptraj-dihed-outfile', action="store",
+        default='dihedrals.dat',
+        help=("Filename to use within cpptraj input file for dihedral data. "
+              "Default: dihedrals.dat"))
+
     options = parser.parse_args()
 
     ambmask = Ambmask(
@@ -213,6 +234,37 @@ def main():
         options.inverse_search)
     log.info("Identified %s dihedrals: \n%s" % (
         len(dihedrals), "\n".join(str(d) for d in dihedrals)))
+    if options.cpptraj_inputfile:
+        log.info("Writing cpptraj input file '%s'..." %
+            options.cpptraj_inputfile)
+        with open(options.cpptraj_inputfile, 'w') as f:
+            f.write(generate_cpptraj_input(dihedrals))
+
+
+def generate_cpptraj_input(dihedrals):
+    general_input_templ = Template(dedent("""\
+        trajin $trajectoryfile 1 last\n
+        $dihedral_lines
+        datafile $cpptraj_outfile noxcol
+        """))
+
+    dihedral_line_templ = Template(dedent("""\
+        dihedral $name $four_atom_spec out $cpptraj_outfile\
+        """))
+
+    dihed_lines = []
+    for d in dihedrals:
+        dihed_lines.append(dihedral_line_templ.substitute(
+            name=d.name,
+            four_atom_spec=" ".join(a.cpptraj_atom_mask() for a in d.atoms),
+            cpptraj_outfile=options.cpptraj_dihed_outfile
+            ))
+    dihed_lines = "\n".join(dihed_lines)
+    return general_input_templ.substitute(
+        trajectoryfile=options.trajectoryfile,
+        dihedral_lines=dihed_lines,
+        cpptraj_outfile=options.cpptraj_dihed_outfile
+        )
 
 
 class Atom(object):
@@ -222,8 +274,15 @@ class Atom(object):
         self.resid = resid
         self.resname = resname
 
+    def cpptraj_atom_mask(self):
+        if options.print_atom_ids:
+            return "@%s" % self.aid
+        return ":%s@%s" % (self.resid, self.name)
+
     def __str__(self):
-        return "%s_%s" % (str(self.aid).zfill(5), self.name)
+        if options.print_atom_ids:
+            return "%s_%s" % (str(self.aid).zfill(5), self.name)
+        return ":%s@%s" % (str(self.resid).zfill(3), self.name)
 
     def __repr__(self):
         return "Atom(aid=%s, aname=%s, resid=%s, resname=%s)" % (
