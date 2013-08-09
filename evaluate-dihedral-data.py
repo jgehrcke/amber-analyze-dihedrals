@@ -22,11 +22,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import os
-import sys
 import StringIO
 import argparse
 import itertools
+from matplotlib import pyplot
 import pandas as pd
 import numpy as np
 import logging
@@ -61,7 +60,7 @@ def main():
         suffixes_for_merge = options.merge.split(',')
         log.info("Angle name suffixes for merge:\n%s",
             "\n".join(suffixes_for_merge))
-        merge_dataframe_by_suffix(df, suffixes_for_merge)
+        df_merged_series = merge_dataframe_by_suffix(df, suffixes_for_merge)
 
     if options.two_dimensional:
         suffixes_for_2d = options.two_dimensional.split(',')
@@ -81,12 +80,33 @@ def merge_dataframe_by_suffix(df, suffixes_for_merge):
                 log.debug("Delete column from original dataframe.")
                 del df[c]
 
-    print "groups:"
+    log.info("Groups identified:")
     for sfx, series_list in column_groups.iteritems():
-        print "%s: %s columns" % (sfx, len(series_list))
-        for s in series_list:
-            print " type: %s" % type(s)
-            print s.head()
+        log.info("  suffix '%s': %s columns" , sfx, len(series_list))
+        for i, s in enumerate(series_list):
+            log.info("        Column %s: '%s' with %s values.",
+                i, s.name, len(s))
+        #    print " type: %s" % type(s)
+        #    print s.head()
+
+    log.info("Merging data within groups.")
+
+    merged_series_list = []
+    for sfx, series_list in column_groups.iteritems():
+        merged_series = pd.concat(series_list)
+        log.debug("Type of merged_series: %s", type(merged_series))
+        merged_series.name = sfx
+        log.info("Created series with name '%s' containing %s values.",
+            merged_series.name, len(merged_series))
+        merged_series_list.append(merged_series)
+    df_merged_series = pd.DataFrame(
+        {s.name:s.values for s in merged_series_list})
+    log.info("Created dataframe from merges series. Details:\n%s",
+        df_merged_series)
+    log.info("Head:\n%s", df_merged_series.head())
+    return df_merged_series
+
+
 
 
 def parse_dihed_datafile():
