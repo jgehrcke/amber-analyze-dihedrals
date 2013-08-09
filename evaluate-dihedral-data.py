@@ -108,49 +108,102 @@ def main():
         for n, wcs in merge_groups.iteritems():
             log.info("Merge group:\n  name: %r\n  wildcard(s): %s)", n, wcs)
 
+    x_y_names_for_2d_plot = None
+    if options.two_dimensional:
+        # Validate user-given input regarding 2D histogram plotting.
+        log.info("2D plotting option was specified. Validate.")
+        x_y_names_for_2d_plot = options.two_dimensional.split(',')
+        if not len(x_y_names_for_2d_plot) == 2:
+            sys.exit(("Exactly two comma-separated data set names must be "
+                "provided as an argument to the 2D plotting option. "
+                "%s found." % len(x_y_names_for_2d_plot)))
+
+
     # Read raw data to pandas DataFrame.
-    df = parse_dihed_datafile()
+    original_df = parse_dihed_datafile()
 
     # Merge data if applicable.
-    df_merged_series = None
+    merged_df = None
     if options.merge:
-        df_merged_series = merge_dataframe_by_suffix(df, merge_groups)
+        merged_df = merge_dataframe_by_suffix(original_df, merge_groups)
 
     # Plot 2D histogram if applicable.
-    if options.two_dimensional:
-        name_x, name_y = options.two_dimensional.split(',')
-        log.info(("Angle data set names to be used for 2D histogram:\n%s",
-            "\n".join([name_x, name_y])))
-        if df_merged_series:
-            if all(s in df_merged_series for s in [name_x, name_y]):
-                log.info("Found 2D plot suffixes (%s,%s) in merged data set.",
-                    name_x, name_y)
-                create_2d_hist(df_merged_series, name_x, name_y)
+    if x_y_names_for_2d_plot:
+        histogram_from_dataset_names(
+            x_y_names_for_2d_plot, original_df, merged_df)
+
+
+
+def histogram_from_dataset_names(names, original_df, merged_df):
+    """Currently, `names` must be of length 1 (1D histogram) or 2 (2D hist).
+    The data sets are first used in the merged dataframe, then in the original
+    one. If two names are provided and found in one or the other dataframe,
+    the datasets are validated to be of the same length before plotting. If
+    two data set names are provided, the first data set ends up on the x-axis
+    (horizontal axis) of the 2D histogram.
+    """
+    log.info("Instructed to plot histogram from data set(s) with name(s) %s.",
+        names)
+    def get_column(name):
+        if name in merged_df:
+            log.info("Found set '%s' in merged data set. Use it.", name)
+            return merged_df[name]
+        if name in original_df:
+            log.info("Found set '%s' in original data set. Use it.", name)
+            return original_df[name]
+        log.error(("Dataset name '%s' was specified for plotting but does not "
+            "exist in merged or original data.", name))
+        sys.exit(1)
+
+    if len(names) == 1:
+        raise NotImplementedError("1D histogram is yet to be implemented.")
+    elif len(names) == 2:
+        series_x, series_y = [get_column(n) for n in names]
+        log.info(("Angle data set names to be used for 2D histogram: '%s' "
+            "(horizontal axis (x)) and '%s' (vertical axis, (y))." % (
+                series_x.name, series_y.name)))
+        log.info("Length of x data set: %s", len(series_x))
+        log.info("Length of y data set: %s", len(series_y))
+        if not len(series_x) == len(series_y):
+            log.error(("I don't want to build a 2D histogram from two data "
+                "sets different in length."))
+            sys.exit(1)
+        log.info("Plot it (using matplotlib).")
+        t = "dihedral '%s' vs. dihedral '%s'" % (series_x.name, series_y.name)
+        create_2d_hist(
+            series_x,
+            series_y,
+            title=t,
+            xlabel="%s / degrees" % util_greek_map(series_x.name),
+            ylabel="%s / degrees" % util_greek_map(series_y.name)
+            )
+    else:
+        raise Exception("Don't you dare asking for a 3D historam.")
 
 
 def util_greek_map(a):
-    """If string `a` is in `translate` mapping, replace it with greek
-    representation.
+    """If string `a` contains greek letter from `translate` mapping, replace
+    `a` with the greek representation.
     """
     translate = {
         'phi': r'$\phi$',
         'psi': r'$\psi$'
         }
-    if a in translate:
-        return translate[a]
+    for greek_letter in translate:
+        if greek_letter in a:
+            return translate[greek_letter]
     return a
 
-def create_2d_hist(df, cname_x, cname_y):
-    """Create a 2D histogram (heat map) from data in DataFrame `df` (columns
-    `chead1` and `chead2`).
+
+def create_2d_hist(series_x, series_y, title, xlabel, ylabel):
+    """Create a 2D histogram (heat map) from data in the two DataSeries objects
+    `series_x` and `series_y`.
     """
-    df_cnames = ",".join("%r" % c for c in df.columns)
-    log.debug("Creating 2D histogram from DataFrame (columns '%s')",
-        df_cnames)
-    log.debug("Horizontal axis: '%s', vertical axis: '%s'", cname_x, cname_y)
-    pyplot.hist2d(df[cname_x].values, df[cname_y].values, bins=options.bins)
-    pyplot.xlabel("%s / degrees" % util_greek_map(cname_x))
-    pyplot.ylabel("%s / degrees" % util_greek_map(cname_y))
+    log.info("Calling 'hist2d', using %s bins.", options.bins)
+    pyplot.hist2d(series_x.values, series_y.values, bins=options.bins)
+    pyplot.title(title)
+    pyplot.xlabel(xlabel)
+    pyplot.ylabel(ylabel)
     pyplot.colorbar()
     pyplot.show()
 
