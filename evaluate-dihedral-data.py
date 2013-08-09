@@ -55,10 +55,11 @@ def main():
             "set names."
             ))
     parser.add_argument('-t', '--two-dimensional', action="store",
-        metavar="name1,name2",
+        metavar="nameX,nameY",
         help=("Comma-separated list of two angle data set names to be plotted "
             "in a two-dimensional heat map. Names can be used from original "
-            "data or from merged data sets."))
+            "data or from merged data sets. Data corresponding to the first "
+            "name will be placed on the horizontal axis."))
     parser.add_argument('-m', '--merge', nargs=2, action="append",
         metavar=("name", "'wildcard'"),
         help=("This option consumes the following two arguments. The first "
@@ -118,13 +119,14 @@ def main():
     # Plot 2D histogram if applicable.
     if options.two_dimensional:
         name_x, name_y = options.two_dimensional.split(',')
-        log.info(("Angle name suffixes for 2D histogram for matching angle "
-            "name prefixes:\n%s"), "\n".join([sfx2d_1, sfx2d_2]))
+        log.info(("Angle data set names to be used for 2D histogram:\n%s",
+            "\n".join([name_x, name_y])))
         if df_merged_series:
-            if all(s in df_merged_series for s in [sfx2d_1, sfx2d_2]):
+            if all(s in df_merged_series for s in [name_x, name_y]):
                 log.info("Found 2D plot suffixes (%s,%s) in merged data set.",
-                    sfx2d_1, sfx2d_2)
-                create_2d_hist(df_merged_series, sfx2d_1, sfx2d_2)
+                    name_x, name_y)
+                create_2d_hist(df_merged_series, name_x, name_y)
+
 
 def util_greek_map(a):
     """If string `a` is in `translate` mapping, replace it with greek
