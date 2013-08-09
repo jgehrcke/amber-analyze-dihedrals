@@ -283,7 +283,7 @@ def create_2d_hist(
     `series_x` and `series_y`.
     """
     log.info("Creating new figure.")
-    pyplot.figure()
+    fig = pyplot.figure()
     log.info("Calling 'hist2d', using %s bins.", options.bins)
     pyplot.hist2d(series_x.values, series_y.values, bins=options.bins)
     pyplot.title(title)
@@ -300,7 +300,7 @@ def create_2d_hist(
         pyplot.savefig(fn, dpi=resolution)
     if save_png or save_pdf:
         # Don't display this figure in any window later on.
-        pyplot.gcf().close()
+        pyplot.close(fig)
 
 
 def merge_dataseries_by_wildcards(df, merge_groups):
