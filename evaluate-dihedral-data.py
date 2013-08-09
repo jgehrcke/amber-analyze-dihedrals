@@ -67,17 +67,22 @@ def main():
             "title for the entire plot. Other arguments to this option are "
             "ignored. This option can be specified multiple times in order to "
             "plot various data set pairs."))
-    parser.add_argument('--pdf', action="store", default=False, nargs='?',
-        metavar='filename-prefix',
+    parser.add_argument('--pdf', action="store_true", default=False,
         help=("Instead of displaying a figure, write a PDF file. The file is "
             "written to the current working directory. Its name is prepended "
-            "with a prefix, if provided. The rest of the name is generated "
-            "from the name(s) of the data set(s) involved in the figure."))
-    parser.add_argument('--png', action="store", default=False, nargs='?',
-        metavar='filename-prefix',
+            "with a prefix, if provided by the --imagefile-prefix option "
+            "(this prefix might contain path separators). The rest of the "
+            "name is generated from the name(s) of the data set(s) involved "
+            "in the figure."))
+    parser.add_argument('--png', action="store_true", default=False,
         help=("Instead of displaying a figure, write a PNG file. See --pdf "
             "for further details. When this option is specified, the "
             "--resolution option takes effect."))
+    parser.add_argument('-i', '--imagefile-prefix', action="store", default='',
+        metavar='filename-prefix',
+        help=("A common prefix that is prepended to all image "
+            "filenames before writing. Takes effect when --png and/or --pdf "
+            "is specified."))
     parser.add_argument('-r', '--resolution', action="store",
         type=int, default=150, metavar="DPI",
         help=("Image resolution (DPI) when saving plot as PNG. Forwarded to "
@@ -107,13 +112,9 @@ def main():
             "character. [ABC] matches A,B, or C."
             ""
             ))
-
-
     parser.add_argument('-b', '--bins', action="store", type=int, default=20,
         help="Number of histogram bins for each dimension. Default: 20.")
     options = parser.parse_args()
-
-
 
     if options.merge:
         # Validate user-given input regarding data merging, provide useful
@@ -144,8 +145,8 @@ def main():
                 "%s found." % len(x_y_names_for_2d_plot)))
         # One more argument is optional, if given it contains the plot title.
         title_for_2d_plot = None
-        if len(options.two_dimensional) > 1:
-            title_for_2d_plot = options.two_dimensional[1]
+        if len(twodim_hist_info_list) > 1:
+            title_for_2d_plot = twodim_hist_info_list[1]
         twodim_hist_infos.append({
             'title': title_for_2d_plot,
             'x_y_names': x_y_names_for_2d_plot
@@ -210,12 +211,30 @@ def histogram_from_dataset_names(dataset_names, title, original_df, merged_df):
                 series_x.name, series_y.name)
         else:
             t = title
+        filename_wo_ext = None
+        if options.pdf or options.png:
+            log.info("Don't open plot in window (PNG/PDF output specified).")
+            open_window = False
+            log.info(("Building image filename w/o extension, using prefix "
+                "'%s', and both data set names."), options.imagefile_prefix)
+            filename_wo_ext = "%s%s-%s" % (
+                options.imagefile_prefix, series_x.name, series_y.name)
+            log.info("Filename w/o extension: '%s'", filename_wo_ext)
+        else:
+            open_window = True
+            log.info(("Planning to open plot in window, since no image file "
+                "output has been specified."))
         create_2d_hist(
-            series_x,
-            series_y,
+            series_x=series_x,
+            series_y=series_y,
             title=t,
             xlabel="%s / degrees" % util_greek_map(series_x.name),
-            ylabel="%s / degrees" % util_greek_map(series_y.name)
+            ylabel="%s / degrees" % util_greek_map(series_y.name),
+            open_window=open_window,
+            save_png=options.png,
+            save_pdf=options.pdf,
+            filename_wo_ext=filename_wo_ext,
+            resolution=options.resolution
             )
     else:
         raise Exception("Don't you dare asking for a 3D historam.")
@@ -235,7 +254,17 @@ def util_greek_map(a):
     return a
 
 
-def create_2d_hist(series_x, series_y, title, xlabel, ylabel):
+def create_2d_hist(
+        series_x,
+        series_y,
+        title,
+        xlabel,
+        ylabel,
+        open_window,
+        save_png,
+        save_pdf,
+        filename_wo_ext,
+        resolution):
     """Create a 2D histogram (heat map) from data in the two DataSeries objects
     `series_x` and `series_y`.
     """
@@ -245,7 +274,16 @@ def create_2d_hist(series_x, series_y, title, xlabel, ylabel):
     pyplot.xlabel(xlabel)
     pyplot.ylabel(ylabel)
     pyplot.colorbar()
-    pyplot.show()
+    if save_pdf:
+        fn = "%s.pdf" % filename_wo_ext
+        log.info("(Over)writing '%s'.", fn)
+        pyplot.savefig(fn)
+    if save_png:
+        fn = "%s.png" % filename_wo_ext
+        log.info("(Over)writing '%s'.", fn)
+        pyplot.savefig(fn, dpi=resolution)
+    if open_window:
+        pyplot.show()
 
 
 def merge_dataframe_by_suffix(df, merge_groups):
