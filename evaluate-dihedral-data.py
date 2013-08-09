@@ -131,13 +131,13 @@ def main():
         for n, wcs in merge_groups.iteritems():
             log.info("Merge group:\n  name: %r\n  wildcard(s): %s)", n, wcs)
 
-    x_y_names_for_2d_plot = None
-    if options.two_dimensional:
+    twodim_hist_infos = []
+    for twodim_hist_info_list in options.two_dimensional:
         # Validate user-given input regarding 2D histogram plotting.
         log.info("2D plotting option was specified. Validate.")
         # One argument to this option is required. It must contains a comma-
         # separated list of two data set names.
-        x_y_names_for_2d_plot = options.two_dimensional[0].split(',')
+        x_y_names_for_2d_plot = twodim_hist_info_list[0].split(',')
         if not len(x_y_names_for_2d_plot) == 2:
             sys.exit(("Exactly two comma-separated data set names must be "
                 "provided as an argument to the 2D plotting option. "
@@ -146,6 +146,10 @@ def main():
         title_for_2d_plot = None
         if len(options.two_dimensional) > 1:
             title_for_2d_plot = options.two_dimensional[1]
+        twodim_hist_infos.append({
+            'title': title_for_2d_plot,
+            'x_y_names': x_y_names_for_2d_plot
+        })
 
 
     # Read raw data to pandas DataFrame.
@@ -157,11 +161,13 @@ def main():
         merged_df = merge_dataframe_by_suffix(original_df, merge_groups)
 
     # Plot 2D histogram if applicable.
-    if x_y_names_for_2d_plot:
-        histogram_from_dataset_names(
-            x_y_names_for_2d_plot,
-            title_for_2d_plot,
-            original_df, merged_df)
+    if twodim_hist_infos:
+        for twodim_hist_info in twodim_hist_infos:
+            histogram_from_dataset_names(
+                twodim_hist_info['x_y_names'],
+                twodim_hist_info['title'],
+                original_df,
+                merged_df)
 
 
 def histogram_from_dataset_names(dataset_names, title, original_df, merged_df):
