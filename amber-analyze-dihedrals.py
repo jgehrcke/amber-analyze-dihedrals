@@ -401,9 +401,15 @@ def identify_dihedrals(config, resname_resids_mapping, inverse):
                     # Create descriptive label for current dihedral, containing
                     # the two residues (incl. id and name) as well as the name
                     # of the angle as specified in the config.
+                    # Long version (does not fit in cpptraj output column):
+                    #involved_residues_identifier = "-".join(
+                    #    "%s_%s" % (str(i).zfill(3),n) for i,n in zip(
+                    #    involved_resids, involved_residue_names))
+                    #dihedral_identifier = "%s-%s" % (
+                    #    involved_residues_identifier, angle_name)
+                    # Short version:
                     involved_residues_identifier = "-".join(
-                        "%s_%s" % (str(i).zfill(3),n) for i,n in zip(
-                        involved_resids, involved_residue_names))
+                        "%s" % str(i).zfill(3) for i in involved_resids)
                     dihedral_identifier = "%s-%s" % (
                         involved_residues_identifier, angle_name)
                     log.info("Creating dihedral %s involving atoms %s." % (
