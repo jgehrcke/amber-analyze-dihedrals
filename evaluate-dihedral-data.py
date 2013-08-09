@@ -42,6 +42,10 @@ log.setLevel(logging.DEBUG)
 
 # Reserve name for global options object.
 options = None
+# Reserve name for global open window option, which is interpreted at the
+# end of the runtime of the program, potentially instructing matplotlib to
+# open/display all figures in their windows.
+open_figure_windows = False
 
 def main():
     global options
@@ -171,6 +175,9 @@ def main():
                 original_df,
                 merged_series)
 
+    if open_figure_windows:
+        pyplot.show()
+
 
 def histogram_from_dataset_names(
         dataset_names,
@@ -184,6 +191,7 @@ def histogram_from_dataset_names(
     plotting. If two data set names are provided, the first data set ends up on
     the x-axis (horizontal axis) of the 2D histogram.
     """
+    global open_figure_windows
     log.info("Instructed to plot histogram from data set(s) with name(s) %s.",
         dataset_names)
     def get_column(name):
@@ -219,14 +227,13 @@ def histogram_from_dataset_names(
         filename_wo_ext = None
         if options.pdf or options.png:
             log.info("Don't open plot in window (PNG/PDF output specified).")
-            open_window = False
             log.info(("Building image filename w/o extension, using prefix "
                 "'%s', and both data set names."), options.imagefile_prefix)
             filename_wo_ext = "%s%s-%s" % (
                 options.imagefile_prefix, series_x.name, series_y.name)
             log.info("Filename w/o extension: '%s'", filename_wo_ext)
         else:
-            open_window = True
+            open_figure_windows = True
             log.info(("Planning to open plot in window, since no image file "
                 "output has been specified."))
         create_2d_hist(
@@ -235,7 +242,7 @@ def histogram_from_dataset_names(
             title=t,
             xlabel="%s / degrees" % util_greek_map(series_x.name),
             ylabel="%s / degrees" % util_greek_map(series_y.name),
-            open_window=open_window,
+            #open_window=open_window,
             save_png=options.png,
             save_pdf=options.pdf,
             filename_wo_ext=filename_wo_ext,
@@ -265,7 +272,6 @@ def create_2d_hist(
         title,
         xlabel,
         ylabel,
-        open_window,
         save_png,
         save_pdf,
         filename_wo_ext,
@@ -273,6 +279,8 @@ def create_2d_hist(
     """Create a 2D histogram (heat map) from data in the two DataSeries objects
     `series_x` and `series_y`.
     """
+    log.info("Creating new figure.")
+    pyplot.figure()
     log.info("Calling 'hist2d', using %s bins.", options.bins)
     pyplot.hist2d(series_x.values, series_y.values, bins=options.bins)
     pyplot.title(title)
@@ -287,8 +295,9 @@ def create_2d_hist(
         fn = "%s.png" % filename_wo_ext
         log.info("(Over)writing '%s'.", fn)
         pyplot.savefig(fn, dpi=resolution)
-    if open_window:
-        pyplot.show()
+    if save_png or save_pdf:
+        # Don't display this figure in any window later on.
+        pyplot.gcf().close()
 
 
 def merge_dataseries_by_wildcards(df, merge_groups):
