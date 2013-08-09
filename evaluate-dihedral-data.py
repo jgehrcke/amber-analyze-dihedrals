@@ -186,17 +186,18 @@ def histogram_from_dataset_names(
         title,
         original_df,
         merged_series):
-    """Currently, `names` must be of length 1 (1D histogram) or 2 (2D hist).
-    The data sets are first searched for in the merged dataframe, then in the
-    original one. If two names are provided and found (in one or the other
-    dataframe), the datasets are validated to be of the same length before
-    plotting. If two data set names are provided, the first data set ends up on
-    the x-axis (horizontal axis) of the 2D histogram.
+    """Currently, `dataset_names` must be of length 1 (1D hist) or 2 (2D hist).
+    The data sets are first searched for in the list of merged data series,
+    then in the original dataframe. If two names are provided and found (in one
+    or the other dataframe), the datasets are validated to be of the same
+    length before considering them for plotting. If two data set names are
+    provided, the first data set ends up on the x-axis (horizontal axis) of the
+    2D histogram.
     """
     global open_figure_windows
     log.info("Instructed to plot histogram from data set(s) with name(s) %s.",
         dataset_names)
-    def get_column(name):
+    def get_series(name):
         if name in merged_series:
             log.info("Found set '%s' in merged data set. Use it.", name)
             return merged_series[name]
@@ -210,7 +211,7 @@ def histogram_from_dataset_names(
     if len(dataset_names) == 1:
         raise NotImplementedError("1D histogram is yet to be implemented.")
     elif len(dataset_names) == 2:
-        series_x, series_y = [get_column(n) for n in dataset_names]
+        series_x, series_y = [get_series(n) for n in dataset_names]
         log.info(("Angle data set names to be used for 2D histogram: '%s' "
             "(horizontal axis (x)) and '%s' (vertical axis, (y))." % (
                 series_x.name, series_y.name)))
@@ -222,6 +223,7 @@ def histogram_from_dataset_names(
             sys.exit(1)
         log.info("Plot it (using matplotlib).")
         if title is None:
+            # Build default title from data set names.
             t = "dihedral '%s' vs. dihedral '%s'" % (
                 series_x.name, series_y.name)
         else:
@@ -244,19 +246,18 @@ def histogram_from_dataset_names(
             title=t,
             xlabel="%s / degrees" % util_greek_map(series_x.name),
             ylabel="%s / degrees" % util_greek_map(series_y.name),
-            #open_window=open_window,
             save_png=options.png,
             save_pdf=options.pdf,
             filename_wo_ext=filename_wo_ext,
             resolution=options.resolution
             )
     else:
-        raise Exception("Don't you dare asking for a 3D historam.")
+        raise Exception("Don't you dare asking for a higher dimension.")
 
 
 def util_greek_map(a):
     """If string `a` contains greek letter from `translate` mapping, replace
-    `a` with the greek representation.
+    `a` with the greek representation. Otherwise return `a` unchanged.
     """
     translate = {
         'phi': r'$\phi$',
@@ -303,7 +304,9 @@ def create_2d_hist(
 
 
 def merge_dataseries_by_wildcards(df, merge_groups):
-    """Create and return pandas DataFrame containing only merged data sets.
+    """Create and return dictionary containing only merged data sets. Modify
+    original dataframe `df` on the fly (remove those series (columns) that)
+    have been merged.
     """
     # Create dictionary containing the names of the merge groups as keys.
     # For each key, build a list of matching pandas DataSeries as value. A
@@ -351,16 +354,17 @@ def merge_dataseries_by_wildcards(df, merge_groups):
 
 def parse_dihed_datafile():
     log.info("Reading '%s' to pandas DataFrame.", options.dihedraldatafile)
-    # Bring output of cpptraj into classical CSV shape.
+    # Transform output of cpptraj into classical CSV shape, use an in-memory
+    # buffer for this.
     with open(options.dihedraldatafile) as f:
         lines = f.readlines()
-    # Remove leading '#' in first line, strip white spaces and replace
-    # whitespace delimiter with comma.
+    # Remove leading '#' in first line, strip leading and trailing white spaces
+    # and replace whitespace delimiters with commas.
     firstline = ','.join(lines[0].strip().strip('#').split())
-    otherlines = (','.join(l.strip().split()) for l in lines[1:])
+    otherlines_gen = (','.join(l.strip().split()) for l in lines[1:])
     csv_buffer = StringIO.StringIO()
     csv_buffer.write("%s\n" % firstline)
-    csv_buffer.write("\n".join(otherlines))
+    csv_buffer.write("\n".join(otherlines_gen))
     csv_buffer.seek(0)
     df = pd.read_csv(csv_buffer)
     log.debug("Columns read:\n%s", "\n".join(c for c in df.columns))
