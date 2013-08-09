@@ -157,9 +157,10 @@ def main():
     original_df = parse_dihed_datafile()
 
     # Merge data if applicable.
-    merged_df = None
+    merged_series = None
     if options.merge:
-        merged_df = merge_dataframe_by_suffix(original_df, merge_groups)
+        merged_series = merge_dataseries_by_wildcards(
+            original_df, merge_groups)
 
     # Plot 2D histogram if applicable.
     if twodim_hist_infos:
@@ -168,10 +169,14 @@ def main():
                 twodim_hist_info['x_y_names'],
                 twodim_hist_info['title'],
                 original_df,
-                merged_df)
+                merged_series)
 
 
-def histogram_from_dataset_names(dataset_names, title, original_df, merged_df):
+def histogram_from_dataset_names(
+        dataset_names,
+        title,
+        original_df,
+        merged_series):
     """Currently, `names` must be of length 1 (1D histogram) or 2 (2D hist).
     The data sets are first searched for in the merged dataframe, then in the
     original one. If two names are provided and found (in one or the other
@@ -182,9 +187,9 @@ def histogram_from_dataset_names(dataset_names, title, original_df, merged_df):
     log.info("Instructed to plot histogram from data set(s) with name(s) %s.",
         dataset_names)
     def get_column(name):
-        if name in merged_df:
+        if name in merged_series:
             log.info("Found set '%s' in merged data set. Use it.", name)
-            return merged_df[name]
+            return merged_series[name]
         if name in original_df:
             log.info("Found set '%s' in original data set. Use it.", name)
             return original_df[name]
@@ -286,7 +291,7 @@ def create_2d_hist(
         pyplot.show()
 
 
-def merge_dataframe_by_suffix(df, merge_groups):
+def merge_dataseries_by_wildcards(df, merge_groups):
     """Create and return pandas DataFrame containing only merged data sets.
     """
     # Create dictionary containing the names of the merge groups as keys.
@@ -322,12 +327,14 @@ def merge_dataframe_by_suffix(df, merge_groups):
         log.info("Created series with name '%s' containing %s values.",
             merged_series.name, len(merged_series))
         merged_series_list.append(merged_series)
-    df_merged_series = pd.DataFrame(
-        {s.name:s.values for s in merged_series_list})
-    log.info("Created DataFrame from merged series. Details:\n%s",
-        df_merged_series)
-    log.info("Head:\n%s", df_merged_series.head())
-    return df_merged_series
+    log.debug("Creating dictionary from multiple DataSeries.")
+    merged_series =  {s.name:s for s in merged_series_list}
+    #log.info("Created DataFrame from merged series. Details:\n%s",
+    #    df_merged_series)
+    log.info("Created dictionary from merged series. Details:\n%s",
+        merged_series)
+    #log.info("Head:\n%s", df_merged_series.head())
+    return merged_series
 
 
 def parse_dihed_datafile():
