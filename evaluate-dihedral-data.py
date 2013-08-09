@@ -54,7 +54,7 @@ def main():
             "names (headers in the first line) are interpreted as angle data "
             "set names."
             ))
-    parser.add_argument('-t', '--two-dimensional', action="store", nargs='+',
+    parser.add_argument('-t', '--two-dimensional', action="append", nargs='+',
         metavar=("'nameX,nameY'", "'title'"),
         help=("Comma-separated list of two angle data set names to be plotted "
             "in a two-dimensional heat map histogram. Names can be used from "
@@ -65,7 +65,24 @@ def main():
             "be set to 'greek_letter / degrees' correspondingly. A second "
             "argument can be provided to the option containing a descriptive "
             "title for the entire plot. Other arguments to this option are "
-            "ignored."))
+            "ignored. This option can be specified multiple times in order to "
+            "plot various data set pairs."))
+    parser.add_argument('--pdf', action="store", default=False, nargs='?',
+        metavar='filename-prefix',
+        help=("Instead of displaying a figure, write a PDF file. The file is "
+            "written to the current working directory. Its name is prepended "
+            "with a prefix, if provided. The rest of the name is generated "
+            "from the name(s) of the data set(s) involved in the figure."))
+    parser.add_argument('--png', action="store", default=False, nargs='?',
+        metavar='filename-prefix',
+        help=("Instead of displaying a figure, write a PNG file. See --pdf "
+            "for further details. When this option is specified, the "
+            "--resolution option takes effect."))
+    parser.add_argument('-r', '--resolution', action="store",
+        type=int, default=150, metavar="DPI",
+        help=("Image resolution (DPI) when saving plot as PNG. Forwarded to "
+            "matplotlib's 'dpi' argument of the 'savefig()'' function. "
+            "Default: 150."))
     parser.add_argument('-m', '--merge', nargs=2, action="append",
         metavar=("name", "'wildcard'"),
         help=("This option consumes the following two arguments. The first "
