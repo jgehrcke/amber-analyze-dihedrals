@@ -249,7 +249,8 @@ def histogram_from_dataset_names(
             save_png=options.png,
             save_pdf=options.pdf,
             filename_wo_ext=filename_wo_ext,
-            resolution=options.resolution
+            resolution=options.resolution,
+            axis_range=[[-180, 180], [-180, 180]] # Default for the moment.
             )
     else:
         raise Exception("Don't you dare asking for a higher dimension.")
@@ -278,14 +279,19 @@ def create_2d_hist(
         save_png,
         save_pdf,
         filename_wo_ext,
-        resolution):
+        resolution,
+        axis_range=None):
     """Create a 2D histogram (heat map) from data in the two DataSeries objects
     `series_x` and `series_y`.
     """
     log.info("Creating new figure.")
     fig = pyplot.figure()
     log.info("Calling 'hist2d', using %s bins.", options.bins)
-    pyplot.hist2d(series_x.values, series_y.values, bins=options.bins)
+    pyplot.hist2d(
+        series_x.values,
+        series_y.values,
+        bins=options.bins,
+        range=axis_range)
     pyplot.title(title)
     pyplot.xlabel(xlabel)
     pyplot.ylabel(ylabel)
