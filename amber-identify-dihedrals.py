@@ -152,34 +152,6 @@ class Ambmask(object):
             self._outformat))
 
 
-# The toplevel config values contain dihedral names. A dihedral name must
-# consist of the names of the residues involved in a dihedral. If a dihedral
-# involves multiple residues, the corresponding residue names must be linked
-# with a dash and written in the right order.
-example_config="""
-04V-4ZB:
-    psi:
-        resnames: [04V, 04V, 4ZB, 4ZB]
-        atoms: [H1, C1, O4, C4]
-    phi:
-        resnames: [04V, 4ZB, 4ZB, 4ZB]
-        atoms: [H1, C1, O4, C4]
-4ZB-34V:
-    psi:
-        resnames: [4ZB, 4ZB, 34V, 34V]
-        atoms: [H1, C1, O3, C3]
-    phi:
-        resnames: [4ZB, 34V, 34V, 34V]
-        atoms: [C1, O3, C3, H3]
-34V-4ZB:
-    psi:
-        resnames: [34V, 34V, 4ZB, 4ZB]
-        atoms: [H1, C1, O4, C4]
-    phi:
-        resnames: [34V, 4ZB, 4ZB, 4ZB]
-        atoms: [C1, O4, C4, H4]
-"""
-
 # Create name for global ambmask object since within one program
 # run the Amber topology and coordinate files as well as ambmask
 # settings are conserved.
@@ -192,11 +164,24 @@ options = None
 def main():
     global ambmask
     global options
-    parser = argparse.ArgumentParser(description='Dickes Tool.')
-    parser.add_argument('topologyfile', action="store")
-    parser.add_argument('coordinatefile', action="store")
-    parser.add_argument('trajectoryfile', action="store")
-    parser.add_argument('configfile', action="store")
+    parser = argparse.ArgumentParser(
+        description=("Identify all dihedrals in molecular system based on "
+            "generalized dihedral description and Amber topology file. "
+            "Prepare cpptraj input file for collecting angular data about "
+            "these dihedrals from a corresponding MD trajectory file."))
+    parser.add_argument(
+        'topologyfile', action="store",
+        help="Amber topology file, used by ambmask.")
+    parser.add_argument(
+        'coordinatefile', action="store",
+        help="Amber coordiate file, used by ambmask.")
+    parser.add_argument(
+        'configfile', action="store",
+        help=("Configuration file to this script in YAML format containing "
+            "the generalized dihedral descriptions. See --example-config."))
+    parser.add_argument(
+        '--example-config', action="store_true", default=False,
+        help="Print example YAML config and exit.")
     parser.add_argument('-i', '--inverse-search',
         action='store_true', default=False,
         help=("Inverse dihedral residue unit search direction. Default is "
@@ -206,13 +191,21 @@ def main():
         help=("In the output, identify atoms by ID rather than residue ID and "
                "atom name."))
     parser.add_argument('-c', '--cpptraj-inputfile', action="store",
+        metavar="PATH",
         help=("If provided, a cpptraj input file for dihedral analysis is "
               "created with the given name."))
     parser.add_argument('-d', '--cpptraj-dihed-outfile', action="store",
-        default='dihedrals.dat',
+        metavar="PATH", default='dihedrals.dat',
         help=("Filename to use within cpptraj input file for dihedral data. "
               "Default: dihedrals.dat"))
+    parser.add_argument('-t', '--trajectory-file', action="store",
+        metavar="PATH", default="TRAJECTORYFILE",
+        help="If provided, it is used within the cpptraj input file.")
 
+
+    if "--example-config" in sys.argv:
+        print EXAMPLE_CONFIG
+        sys.exit()
     options = parser.parse_args()
 
     ambmask = Ambmask(
@@ -265,7 +258,7 @@ def generate_cpptraj_input(dihedrals):
             ))
     dihed_lines = "\n".join(dihed_lines)
     return general_input_templ.substitute(
-        trajectoryfile=options.trajectoryfile,
+        trajectoryfile=options.trajectory_file,
         dihedral_lines=dihed_lines,
         cpptraj_outfile=options.cpptraj_dihed_outfile
         )
@@ -482,7 +475,64 @@ def window(iterable, n):
     return itertools.izip(*els)
 
 
+EXAMPLE_CONFIG="""
+# The toplevel config values contain unique dihedral residue unit names.
+# A dihedral residue unit name must consist of the name(s) of the residue(s)
+# involved in a dihedral. If a dihedral involves multiple residues, the
+# corresponding residue names must be separated by a dash and written in the
+# right order. Example:
+#
+#   04V-4ZB
+#
+# This indicates that the diheral appears within a subsequent occurrence of the
+# residues 04V and 4ZB and that atoms from both residues are contained in the
+# dihedral.
+#
+# In the next two indentation levels, any specific 4-tuple of atoms can be
+# specified that comprise a dihedral.
+#
+# The second level might contain any arbitrary name, e.g. a common greek name
+# for the angle such as psi or phi. The third level must contain two list
+# items, named 'resnames' and 'atoms', each providing a list with four
+# elements. The n-th element of the 'resnames' list is matched with the n-th
+# element of the 'atoms' list, whereas the matching unambiguously defines one
+# atom within the dihedral residue unit. An arbitrary number of such dihedrals
+# can be specified within a dihedral residue unit. Example:
+#
+#   04V-4ZB:
+#       psi:
+#           resnames: [04V, 04V, 4ZB, 4ZB]
+#           atoms: [H1, C1, O4, C4]
+#
+# Within a subsequent occurrence of the residues 04V and 4ZB, look for the
+# dihedral 'psi' comprised by the atoms 04V:H1, 04V:C1, 4ZB:O4, 4ZB:C4.
+#
+# A complete example, defining three unique dihedral residue units, each
+# containing two specific sets of atoms defining one dihedral each:
+
+04V-4ZB:
+    psi:
+        resnames: [04V, 04V, 4ZB, 4ZB]
+        atoms: [H1, C1, O4, C4]
+    phi:
+        resnames: [04V, 4ZB, 4ZB, 4ZB]
+        atoms: [C1, O4, C4, H4]
+4ZB-34V:
+    psi:
+        resnames: [4ZB, 4ZB, 34V, 34V]
+        atoms: [H1, C1, O3, C3]
+    phi:
+        resnames: [4ZB, 34V, 34V, 34V]
+        atoms: [C1, O3, C3, H3]
+34V-4ZB:
+    psi:
+        resnames: [34V, 34V, 4ZB, 4ZB]
+        atoms: [H1, C1, O4, C4]
+    phi:
+        resnames: [34V, 4ZB, 4ZB, 4ZB]
+        atoms: [C1, O4, C4, H4]
+"""
+
+
 if __name__ == "__main__":
     main()
-
-
