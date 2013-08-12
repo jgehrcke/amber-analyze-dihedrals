@@ -94,6 +94,7 @@ class Ambmask(object):
             sys.stderr.write("ambmask stdout: %s\n" % out)
             sys.stderr.flush()
             sys.exit(1)
+        log.debug("ambmask stdout:\n'%r'" % out)
         return out
 
     def residue_ids_by_name(self, resname):
@@ -128,7 +129,7 @@ class Ambmask(object):
         """
         ambmask_stdout = self._run(":%s@%s" % (residue_id, atom_name))
         if not ambmask_stdout:
-            log.debug("%s did not write stdout." % self)
+            log.debug("%s did not write to stdout." % self)
             return None
         if len(ambmask_stdout.splitlines()) > 1:
             sys.exit("Expected %s to be one line only." % out)
@@ -221,6 +222,10 @@ def main():
     validate_config(config)
 
     resname_resids_mapping = get_resids_for_resnames(config)
+    # Filter residue names from dictionary that have not been found in
+    # topology
+    resname_resids_mapping = {
+        k:v for k,v in resname_resids_mapping.iteritems() if v is not None}
     log.info("Residue IDs as identified by ambmask: %s" %
         resname_resids_mapping)
     dihedrals = identify_dihedrals(
@@ -446,7 +451,10 @@ def get_resids_for_resnames(config):
     log.info("Residues in dihedral names: %s" % resnames_in_dihedral_names)
     resname_resids_mapping = {}
     for name in resnames_in_dihedral_names:
-        resname_resids_mapping[name] = ambmask.residue_ids_by_name(name)
+        resid = ambmask.residue_ids_by_name(name)
+        if resid is None:
+            log.info("Residue not in topology: %s" % name)
+        resname_resids_mapping[name] = resid
     return resname_resids_mapping
 
 
