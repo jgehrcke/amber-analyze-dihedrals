@@ -54,8 +54,10 @@ class Ambmask(object):
             printlevel="0",
             outformat="amber",
             ):
-        assert os.path.isfile(topology_file_path)
-        assert os.path.isfile(coordinate_file_path)
+        if not os.path.isfile(topology_file_path):
+            sys.exit("No such toplogy file: '%s'" % topology_file_path)
+        if not os.path.isfile(coordinate_file_path):
+            sys.exit("No such coordinate file: '%s'" % coordinate_file_path)
         self._topology_file_path = topology_file_path
         self._coordinate_file_path = coordinate_file_path
         self._printlevel = printlevel
