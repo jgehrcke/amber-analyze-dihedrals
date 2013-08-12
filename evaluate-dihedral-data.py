@@ -31,6 +31,7 @@ from matplotlib import pyplot
 import pandas as pd
 import numpy as np
 import logging
+import brewer2mpl
 
 
 logging.basicConfig(
@@ -291,7 +292,8 @@ def create_2d_hist(
         series_x.values,
         series_y.values,
         bins=options.bins,
-        range=axis_range)
+        range=axis_range,
+        cmap=brewer2mpl.get_map('Greys', 'sequential', 9).mpl_colormap)
     pyplot.title(title)
     pyplot.xlabel(xlabel)
     pyplot.ylabel(ylabel)
