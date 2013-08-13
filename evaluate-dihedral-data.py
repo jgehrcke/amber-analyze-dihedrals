@@ -134,6 +134,9 @@ def main():
     parser.add_argument('--wrap-x-values-above', action="store",
         type=float, default=0, metavar="X",
         help=("Wrap x values below X to x-360. Implies change in x range."))
+    parser.add_argument('--log-color-scale', action="store_true",
+        default=False,
+        help="Activate logarithmic color scale in 2D histogram.")
     options = parser.parse_args()
 
     if options.wrap_x_values_below and options.wrap_x_values_above:
@@ -295,6 +298,11 @@ def histogram_from_dataset_names(
             log.info(("Planning to open plot in window, since no image file "
                 "output has been specified."))
 
+        color_norm = None
+        if options.log_color_scale:
+            log.info("Activate logarithmic color scale (cmdline).")
+            color_norm = LogNorm()
+
         # Hand over to plotting function.
         create_2d_hist(
             series_x=series_x,
@@ -306,6 +314,7 @@ def histogram_from_dataset_names(
             save_pdf=options.pdf,
             filename_wo_ext=filename_wo_ext,
             resolution=options.resolution,
+            color_norm=color_norm,
             axis_range=[xlimits, ylimits]
             )
     else:
@@ -336,6 +345,7 @@ def create_2d_hist(
         save_pdf,
         filename_wo_ext,
         resolution,
+        color_norm=None,
         axis_range=None):
     """Create a 2D histogram (heat map) from data in the two DataSeries objects
     `series_x` and `series_y`.
@@ -346,14 +356,15 @@ def create_2d_hist(
     # http://matplotlib.org/api/pyplot_api.html#matplotlib.pyplot.hist2d
     # Note from above: Rendering the histogram with a logarithmic color scale
     # is accomplished by passing a colors.LogNorm instance to the norm keyword
-    # argument.
+    # argument. `None` for linear scale:
+    # http://matplotlib.org/api/axes_api.html#matplotlib.axes.Axes.pcolorfast
     pyplot.hist2d(
         series_x.values,
         series_y.values,
         bins=options.bins,
         range=axis_range,
         cmap=brewer2mpl.get_map('Greys', 'sequential', 9).mpl_colormap,
-        norm=LogNorm())
+        norm=color_norm)
     pyplot.title(title)
     pyplot.xlabel(xlabel)
     pyplot.ylabel(ylabel)
