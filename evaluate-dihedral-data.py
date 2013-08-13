@@ -136,6 +136,12 @@ def main():
     parser.add_argument('--wrap-x-values-above', action="store",
         type=float, default=0, metavar="X",
         help=("Wrap x values below X to x-360. Implies change in x range."))
+    parser.add_argument('--wrap-y-values-below', action="store",
+        type=float, default=0, metavar="Y",
+        help=("Wrap y values below Y to y+360. Implies change in y range."))
+    parser.add_argument('--wrap-y-values-above', action="store",
+        type=float, default=0, metavar="Y",
+        help=("Wrap y values below Y to y-360. Implies change in y range."))
     parser.add_argument('--log-color-scale', action="store_true",
         default=False,
         help="Activate logarithmic color scale in 2D histogram.")
@@ -143,6 +149,9 @@ def main():
 
     if options.wrap_x_values_below and options.wrap_x_values_above:
         sys.exit("Only one of --wrap-x-values* can be specified.")
+
+    if options.wrap_y_values_below and options.wrap_y_values_above:
+        sys.exit("Only one of --wrap-y-values* can be specified.")
 
     if options.merge:
         # Validate user-given input regarding data merging, provide useful
@@ -256,6 +265,7 @@ def histogram_from_dataset_names(
         xlimits = np.array([-180, 180])
         ylimits = np.array([-180, 180])
         shift_x_axis = 0
+        shift_y_axis = 0
         if options.wrap_x_values_below:
             log.info(("Modifying data and axis range according to "
                 "--wrap-x-values-below: %s."), options.wrap_x_values_below)
@@ -273,7 +283,25 @@ def histogram_from_dataset_names(
                     "above 180, do not expect any values above 180 at all."))
             series_x[series_x>options.wrap_x_values_above] -= 360
             shift_x_axis = options.wrap_x_values_above - 180
+        if options.wrap_y_values_below:
+            log.info(("Modifying data and axis range according to "
+                "--wrap-y-values-below: %s."), options.wrap_y_values_below)
+            if options.wrap_y_values_below < -180:
+                log.warning(("Did not expect 'wrap-y-values-below' to be "
+                    "below -180, do not expect any values below -180 at all."))
+            # Modify data, wrap implies automatic adjustment of axis range.
+            series_y[series_y<options.wrap_y_values_below] += 360
+            shift_y_axis = 180 + options.wrap_y_values_below
+        elif options.wrap_y_values_above:
+            log.info(("Modifying data and axis range according to "
+                "--wrap-y-values-above: %s."), options.wrap_y_values_above)
+            if options.wrap_y_values_above > 180:
+                log.warning(("Did not expect 'wrap-y-values-above' to be "
+                    "above 180, do not expect any values above 180 at all."))
+            series_y[series_y>options.wrap_y_values_above] -= 360
+            shift_y_axis = options.wrap_y_values_above - 180
         xlimits += shift_x_axis
+        ylimits += shift_y_axis
 
         # x/y range can be overridden via command line.
         if options.x_range:
@@ -445,6 +473,7 @@ def merge_dataseries_by_wildcards(df, merge_groups):
 
 
 def parse_dihed_datafile():
+    log.info("Importing pandas and numpy...")
     import pandas as pd
     import numpy as np
     log.info("Reading '%s' to pandas DataFrame.", options.dihedraldatafile)
