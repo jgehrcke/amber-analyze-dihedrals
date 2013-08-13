@@ -438,17 +438,15 @@ def merge_dataseries_by_wildcards(df, merge_groups):
         merged_series_list.append(merged_series)
     log.debug("Creating dictionary from multiple DataSeries.")
     merged_series =  {s.name:s for s in merged_series_list}
-    #log.info("Created DataFrame from merged series. Details:\n%s",
-    #    df_merged_series)
     log.info("Created dictionary from merged series. Details:")
     for n, s in merged_series.iteritems():
         log.info("    series name: '%s', series length: %s", n, len(s))
-    #log.info("Head:\n%s", df_merged_series.head())
     return merged_series
 
 
 def parse_dihed_datafile():
     import pandas as pd
+    import numpy as np
     log.info("Reading '%s' to pandas DataFrame.", options.dihedraldatafile)
     # Transform output of cpptraj into classical CSV shape, use an in-memory
     # buffer for this.
@@ -456,14 +454,24 @@ def parse_dihed_datafile():
         lines = f.readlines()
     # Remove leading '#' in first line, strip leading and trailing white spaces
     # and replace whitespace delimiters with commas.
+
+    # cpptraj's output might contain "-nan", which either pandas must be told
+    # about via the e.g. na_values=["-nan", "nan"] arg to `read_csv`, or which
+    # can be handled already here in `otherlines_gen`
     firstline = ','.join(lines[0].strip().strip('#').split())
-    otherlines_gen = (','.join(l.strip().split()) for l in lines[1:])
+    otherlines_gen = (
+        ','.join(l.strip().split()) for l in lines[1:] if not "nan" in l)
     csv_buffer = StringIO.StringIO()
     csv_buffer.write("%s\n" % firstline)
     csv_buffer.write("\n".join(otherlines_gen))
     csv_buffer.seek(0)
     df = pd.read_csv(csv_buffer)
     log.debug("Columns read:\n%s", "\n".join(c for c in df.columns))
+    for c in df.columns:
+        log.debug("Column '%s' data type: %s", c, df[c].dtype)
+        if df[c].dtype != np.float64:
+            log.error("Error: all columns must be of dtype float.")
+            sys.exit(1)
     log.debug("Dataframe head:\n%s", df.head())
     log.info("Built pandas DataFrame with %s columns and %s rows.",
         len(df.columns), len(df))
