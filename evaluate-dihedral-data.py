@@ -32,6 +32,7 @@ import pandas as pd
 import numpy as np
 import logging
 import brewer2mpl
+from matplotlib.colors import LogNorm
 
 
 logging.basicConfig(
@@ -119,7 +120,24 @@ def main():
             ))
     parser.add_argument('-b', '--bins', action="store", type=int, default=20,
         help="Number of histogram bins for each dimension. Default: 20.")
+    parser.add_argument('--x-range', action="store", default=False, nargs=2,
+        metavar=('xmin', 'xmax'),
+        help=("Override automatic x-axis range: two numeric values required. "
+            "Default: -180 and 180."))
+    parser.add_argument('--y-range', action="store", default=False, nargs=2,
+        metavar=('ymin', 'ymax'),
+        help=("Override automatic y-axis range: two numeric values required."
+            "Default: -180 and 180."))
+    parser.add_argument('--wrap-x-values-below', action="store",
+        type=float, default=0, metavar="X",
+        help=("Wrap x values below X to x+360. Implies change in x range."))
+    parser.add_argument('--wrap-x-values-above', action="store",
+        type=float, default=0, metavar="X",
+        help=("Wrap x values below X to x-360. Implies change in x range."))
     options = parser.parse_args()
+
+    if options.wrap_x_values_below and options.wrap_x_values_above:
+        sys.exit("Only one of --wrap-x-values* can be specified.")
 
     if options.merge:
         # Validate user-given input regarding data merging, provide useful
@@ -222,13 +240,48 @@ def histogram_from_dataset_names(
             log.error(("I don't want to build a 2D histogram from two data "
                 "sets different in length."))
             sys.exit(1)
-        log.info("Plot it (using matplotlib).")
+        log.info("Prepare plotting (via matplotlib).")
+
+        # Set axis range, modify (shift) data, if applicable.
+        # Define defaults.
+        xlimits = np.array([-180, 180])
+        ylimits = np.array([-180, 180])
+        shift_x_axis = 0
+        if options.wrap_x_values_below:
+            log.info(("Modifying data and axis range according to "
+                "--wrap-x-values-below: %s."), options.wrap_x_values_below)
+            if options.wrap_x_values_below < -180:
+                log.warning(("Did not expect 'wrap-x-values-below' to be "
+                    "below -180, do not expect any values below -180 at all."))
+            # Modify data, wrap implies automatic adjustment of axis range.
+            series_x[series_x<options.wrap_x_values_below] += 360
+            shift_x_axis = 180 + options.wrap_x_values_below
+        elif options.wrap_x_values_above:
+            log.info(("Modifying data and axis range according to "
+                "--wrap-x-values-above: %s."), options.wrap_x_values_above)
+            if options.wrap_x_values_above > 180:
+                log.warning(("Did not expect 'wrap-x-values-above' to be "
+                    "above 180, do not expect any values above 180 at all."))
+            series_x[series_x>options.wrap_x_values_above] -= 360
+            shift_x_axis = options.wrap_x_values_above - 180
+        xlimits += shift_x_axis
+
+        # x/y range can be overridden via command line.
+        if options.x_range:
+            log.info("Overriding x-range with %s (cmdline).", options.x_range)
+            xlimits = np.array(map(float, options.x_range))
+        if options.y_range:
+            log.info("Overriding y-range with %s (cmdline).", options.y_range)
+            ylimits = np.array(map(float, options.y_range))
+
+        # Set title.
         if title is None:
             # Build default title from data set names.
             t = "dihedral '%s' vs. dihedral '%s'" % (
                 series_x.name, series_y.name)
         else:
             t = title
+        # Set filename prefix if applicable.
         filename_wo_ext = None
         if options.pdf or options.png:
             log.info("Don't open plot in window (PNG/PDF output specified).")
@@ -241,6 +294,8 @@ def histogram_from_dataset_names(
             open_figure_windows = True
             log.info(("Planning to open plot in window, since no image file "
                 "output has been specified."))
+
+        # Hand over to plotting function.
         create_2d_hist(
             series_x=series_x,
             series_y=series_y,
@@ -251,7 +306,7 @@ def histogram_from_dataset_names(
             save_pdf=options.pdf,
             filename_wo_ext=filename_wo_ext,
             resolution=options.resolution,
-            axis_range=[[-180, 180], [-180, 180]] # Default for the moment.
+            axis_range=[xlimits, ylimits]
             )
     else:
         raise Exception("Don't you dare asking for a higher dimension.")
@@ -288,12 +343,17 @@ def create_2d_hist(
     log.info("Creating new figure.")
     fig = pyplot.figure()
     log.info("Calling 'hist2d', using %s bins.", options.bins)
+    # http://matplotlib.org/api/pyplot_api.html#matplotlib.pyplot.hist2d
+    # Note from above: Rendering the histogram with a logarithmic color scale
+    # is accomplished by passing a colors.LogNorm instance to the norm keyword
+    # argument.
     pyplot.hist2d(
         series_x.values,
         series_y.values,
         bins=options.bins,
         range=axis_range,
-        cmap=brewer2mpl.get_map('Greys', 'sequential', 9).mpl_colormap)
+        cmap=brewer2mpl.get_map('Greys', 'sequential', 9).mpl_colormap,
+        norm=LogNorm())
     pyplot.title(title)
     pyplot.xlabel(xlabel)
     pyplot.ylabel(ylabel)
@@ -343,7 +403,10 @@ def merge_dataseries_by_wildcards(df, merge_groups):
     log.info("Merging data within groups.")
     merged_series_list = []
     for name, series_list in merge_groups_data_series.iteritems():
-        merged_series = pd.concat(series_list)
+        # Concatenate columns (series) and build new index for new Series,
+        # ensuring uncomplicated following data modification operations (such
+        # as data shift).
+        merged_series = pd.concat(series_list, ignore_index=True)
         log.debug("Type of merged_series: %s", type(merged_series))
         merged_series.name = name
         log.info("Created series with name '%s' containing %s values.",
