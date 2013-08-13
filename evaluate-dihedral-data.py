@@ -418,12 +418,15 @@ def merge_dataseries_by_wildcards(df, merge_groups):
             log.info("        Column %s: '%s' with %s values.",
                 i, s.name, len(s))
 
-    log.info("Merging data within groups.")
+    log.info("Merging data within non-empty groups.")
     merged_series_list = []
     for name, series_list in merge_groups_data_series.iteritems():
         # Concatenate columns (series) and build new index for new Series,
         # ensuring uncomplicated following data modification operations (such
         # as data shift).
+        if not series_list:
+            log.info("Skip processing empty group '%s'" % name)
+            continue
         merged_series = pd.concat(series_list, ignore_index=True)
         log.debug("Type of merged_series: %s", type(merged_series))
         merged_series.name = name
