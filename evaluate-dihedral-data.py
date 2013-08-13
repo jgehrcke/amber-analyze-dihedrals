@@ -229,14 +229,17 @@ def histogram_from_dataset_names(
         if name in original_df:
             log.info("Found set '%s' in original data set. Use it.", name)
             return original_df[name]
-        log.error(("Dataset name '%s' was specified for plotting but does not "
-            "exist in merged or original data.", name))
-        sys.exit(1)
+        log.warning(("Dataset name '%s' was specified for plotting but does "
+            "not exist in merged or original data."), name)
+        return None
 
     if len(dataset_names) == 1:
         raise NotImplementedError("1D histogram is yet to be implemented.")
     elif len(dataset_names) == 2:
         series_x, series_y = [get_series(n) for n in dataset_names]
+        if (series_x is None  or series_y is None):
+            log.info("At least one of x/y data set is invalid. Abort.")
+            return
         log.info(("Angle data set names to be used for 2D histogram: '%s' "
             "(horizontal axis (x)) and '%s' (vertical axis, (y))." % (
                 series_x.name, series_y.name)))
