@@ -22,6 +22,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+import os
 import sys
 import StringIO
 import argparse
@@ -385,6 +386,10 @@ def create_2d_hist(
     """Create a 2D histogram (heat map) from data in the two DataSeries objects
     `series_x` and `series_y`.
     """
+    if not "DISPLAY" in os.environ:
+        # Select backend for headless run.
+        import matplotlib
+        matplotlib.use("Agg")
     from matplotlib import pyplot
     import brewer2mpl
     log.info("Creating new figure.")
