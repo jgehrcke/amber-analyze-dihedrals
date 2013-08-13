@@ -26,14 +26,16 @@ import sys
 import StringIO
 import argparse
 import itertools
-from fnmatch import fnmatchcase
-from matplotlib import pyplot
-import pandas as pd
-import numpy as np
 import logging
-import brewer2mpl
-from matplotlib.colors import LogNorm
+from fnmatch import fnmatchcase
 
+# http://stackoverflow.com/a/4177780/145400
+# Loading these later on (too heavy for loading before e.g. parsing args):
+# import pandas as pd
+# from matplotlib.colors import LogNorm
+# from matplotlib import pyplot
+# import brewer2mpl
+# import numpy as np
 
 logging.basicConfig(
     format='%(asctime)s,%(msecs)-6.1f %(levelname)s: %(message)s',
@@ -216,6 +218,7 @@ def histogram_from_dataset_names(
     provided, the first data set ends up on the x-axis (horizontal axis) of the
     2D histogram.
     """
+    import numpy as np
     global open_figure_windows
     log.info("Instructed to plot histogram from data set(s) with name(s) %s.",
         dataset_names)
@@ -300,6 +303,7 @@ def histogram_from_dataset_names(
 
         color_norm = None
         if options.log_color_scale:
+            from matplotlib.colors import LogNorm
             log.info("Activate logarithmic color scale (cmdline).")
             color_norm = LogNorm()
 
@@ -350,6 +354,8 @@ def create_2d_hist(
     """Create a 2D histogram (heat map) from data in the two DataSeries objects
     `series_x` and `series_y`.
     """
+    from matplotlib import pyplot
+    import brewer2mpl
     log.info("Creating new figure.")
     fig = pyplot.figure()
     log.info("Calling 'hist2d', using %s bins.", options.bins)
@@ -387,6 +393,7 @@ def merge_dataseries_by_wildcards(df, merge_groups):
     original dataframe `df` on the fly (remove those series (columns) that)
     have been merged.
     """
+    import pandas as pd
     # Create dictionary containing the names of the merge groups as keys.
     # For each key, build a list of matching pandas DataSeries as value. A
     # data series is added to a key when the wildcard corresponding to the
@@ -435,6 +442,7 @@ def merge_dataseries_by_wildcards(df, merge_groups):
 
 
 def parse_dihed_datafile():
+    import pandas as pd
     log.info("Reading '%s' to pandas DataFrame.", options.dihedraldatafile)
     # Transform output of cpptraj into classical CSV shape, use an in-memory
     # buffer for this.
