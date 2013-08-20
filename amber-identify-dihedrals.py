@@ -84,7 +84,7 @@ class Ambmask(object):
         try:
             sp = Popen(args, stdout=PIPE, stderr=PIPE)
         except OSError as e:
-            sys.exit(("Error executing ambpdb. Is it in your PATH? "
+            sys.exit(("Error executing ambmask. Is it in your PATH? "
                 "Error message: '%s'" % e))
         out, err = sp.communicate()
         returncode = sp.returncode
