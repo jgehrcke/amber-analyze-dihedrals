@@ -61,7 +61,12 @@ def main():
         help=("Path to data file as produced by cpptraj's 'dihedral' command. "
             "Might contain multiple columns (cpptraj 'datasets'). Column "
             "names (headers in the first line) are interpreted as angle data "
-            "set names."
+            "set names. Is used for plotting histogram."
+            ))
+    parser.add_argument('-a', '--additional-dihedraldatafile', action="store",
+        help=("Path to data file as produced by cpptraj's 'dihedral' command. "
+            "(See above). Data points are not used for plotting histogram, "
+            "each data point explicitly ends up in the graph."
             ))
     parser.add_argument('-t', '--two-dimensional', action="append", nargs='+',
         metavar=("'nameX,nameY'", "'title'"),
@@ -192,13 +197,27 @@ def main():
 
 
     # Read raw data to pandas DataFrame.
-    original_df = parse_dihed_datafile()
+    original_df = parse_dihed_datafile(options.dihedraldatafile)
+
+    # Quick extension hack: additional data point file
+    explicit_datapoints_df = None
+    if options.additional_dihedraldatafile:
+        log.info("Reading additional dihedral data file.")
+        explicit_datapoints_df = parse_dihed_datafile(
+            options.additional_dihedraldatafile)
 
     # Merge data if applicable.
     merged_series = None
+    explicit_datapoints_merged_series = None
     if options.merge:
+        log.info("Merging main dihedral data file.")
         merged_series = merge_dataseries_by_wildcards(
             original_df, merge_groups)
+        # Quick extension hack: additional data point file
+        if options.additional_dihedraldatafile:
+            log.info("Merging additional dihedral data file.")
+            explicit_datapoints_merged_series = merge_dataseries_by_wildcards(
+                explicit_datapoints_df, merge_groups)
 
     # Plot 2D histogram if applicable.
     for twodim_hist_info in twodim_hist_infos:
@@ -206,7 +225,9 @@ def main():
             twodim_hist_info['x_y_names'],
             twodim_hist_info['title'],
             original_df,
-            merged_series)
+            merged_series,
+            explicit_datapoints_df,
+            explicit_datapoints_merged_series)
 
     log.info("Data processing and plotting finished.")
     if open_figure_windows:
@@ -219,7 +240,9 @@ def histogram_from_dataset_names(
         dataset_names,
         title,
         original_df,
-        merged_series):
+        merged_series,
+        explicit_datapoints_df,
+        explicit_datapoints_merged_series):
     """Currently, `dataset_names` must be of length 1 (1D hist) or 2 (2D hist).
     The data sets are first searched for in the list of merged data series,
     then in the original dataframe. If two names are provided and found (in one
@@ -229,6 +252,7 @@ def histogram_from_dataset_names(
     2D histogram.
     """
     import numpy as np
+    import pandas as pd
     global open_figure_windows
     log.info("Instructed to plot histogram from data set(s) with name(s) %s.",
         dataset_names)
@@ -241,12 +265,27 @@ def histogram_from_dataset_names(
             return original_df[name]
         log.warning(("Dataset name '%s' was specified for plotting but does "
             "not exist in merged or original data."), name)
-        return None
+        # Return empty series.
+        return pd.Series()
+
+
+    def get_expl_series(name):
+        if explicit_datapoints_merged_series:
+            if name in explicit_datapoints_merged_series:
+                return explicit_datapoints_merged_series[name]
+        if explicit_datapoints_df:
+            if name in explicit_datapoints_df:
+                return explicit_datapoints_df[name]
+        # Return empty series.
+        return pd.Series()
+
 
     if len(dataset_names) == 1:
         raise NotImplementedError("1D histogram is yet to be implemented.")
     elif len(dataset_names) == 2:
         series_x, series_y = [get_series(n) for n in dataset_names]
+        expl_series_x, expl_series_y = [get_expl_series(n) for n in dataset_names]
+
         if (series_x is None  or series_y is None):
             log.info("At least one of x/y data set is invalid. Abort.")
             return
@@ -275,6 +314,7 @@ def histogram_from_dataset_names(
                     "below -180, do not expect any values below -180 at all."))
             # Modify data, wrap implies automatic adjustment of axis range.
             series_x[series_x<options.wrap_x_values_below] += 360
+            expl_series_x[expl_series_x<options.wrap_x_values_below] += 360
             shift_x_axis = 180 + options.wrap_x_values_below
         elif options.wrap_x_values_above:
             log.info(("Modifying data and axis range according to "
@@ -283,6 +323,7 @@ def histogram_from_dataset_names(
                 log.warning(("Did not expect 'wrap-x-values-above' to be "
                     "above 180, do not expect any values above 180 at all."))
             series_x[series_x>options.wrap_x_values_above] -= 360
+            expl_series_x[expl_series_x>options.wrap_x_values_above] -= 360
             shift_x_axis = options.wrap_x_values_above - 180
         if options.wrap_y_values_below:
             log.info(("Modifying data and axis range according to "
@@ -292,6 +333,7 @@ def histogram_from_dataset_names(
                     "below -180, do not expect any values below -180 at all."))
             # Modify data, wrap implies automatic adjustment of axis range.
             series_y[series_y<options.wrap_y_values_below] += 360
+            expl_series_y[expl_series_y<options.wrap_y_values_below] += 360
             shift_y_axis = 180 + options.wrap_y_values_below
         elif options.wrap_y_values_above:
             log.info(("Modifying data and axis range according to "
@@ -300,6 +342,7 @@ def histogram_from_dataset_names(
                 log.warning(("Did not expect 'wrap-y-values-above' to be "
                     "above 180, do not expect any values above 180 at all."))
             series_y[series_y>options.wrap_y_values_above] -= 360
+            expl_series_y[expl_series_y>options.wrap_y_values_above] -= 360
             shift_y_axis = options.wrap_y_values_above - 180
         xlimits += shift_x_axis
         ylimits += shift_y_axis
@@ -343,6 +386,8 @@ def histogram_from_dataset_names(
         create_2d_hist(
             series_x=series_x,
             series_y=series_y,
+            expl_series_x=expl_series_x,
+            expl_series_y=expl_series_y,
             title=t,
             xlabel="%s / degrees" % util_greek_map(series_x.name),
             ylabel="%s / degrees" % util_greek_map(series_y.name),
@@ -374,6 +419,8 @@ def util_greek_map(a):
 def create_2d_hist(
         series_x,
         series_y,
+        expl_series_x,
+        expl_series_y,
         title,
         xlabel,
         ylabel,
@@ -411,6 +458,14 @@ def create_2d_hist(
     pyplot.xlabel(xlabel)
     pyplot.ylabel(ylabel)
     pyplot.colorbar()
+    pyplot.plot(
+        expl_series_x,
+        expl_series_y,
+        linestyle='None',
+        marker='o',
+        markerfacecolor='blue',
+        markersize=7
+        )
     if save_pdf:
         fn = "%s.pdf" % filename_wo_ext
         log.info("(Over)writing '%s'.", fn)
@@ -477,14 +532,14 @@ def merge_dataseries_by_wildcards(df, merge_groups):
     return merged_series
 
 
-def parse_dihed_datafile():
-    log.info("Importing pandas and numpy...")
+def parse_dihed_datafile(filepath):
+    log.debug("Importing pandas and numpy...")
     import pandas as pd
     import numpy as np
-    log.info("Reading '%s' to pandas DataFrame.", options.dihedraldatafile)
+    log.info("Reading '%s' to pandas DataFrame.", filepath)
     # Transform output of cpptraj into classical CSV shape, use an in-memory
     # buffer for this.
-    with open(options.dihedraldatafile) as f:
+    with open(filepath) as f:
         lines = f.readlines()
     # Remove leading '#' in first line, strip leading and trailing white spaces
     # and replace whitespace delimiters with commas.
