@@ -151,6 +151,9 @@ def main():
     parser.add_argument('--log-color-scale', action="store_true",
         default=False,
         help="Activate logarithmic color scale in 2D histogram.")
+    parser.add_argument('--nohist', action="store_true",
+        default=False,
+        help="Output classical 2D plot instead of histogram.")
     options = parser.parse_args()
 
     if options.wrap_x_values_below and options.wrap_x_values_above:
@@ -194,6 +197,7 @@ def main():
             'title': title_for_2d_plot,
             'x_y_names': x_y_names_for_2d_plot
         })
+
 
 
     # Read raw data to pandas DataFrame.
@@ -447,25 +451,41 @@ def create_2d_hist(
     # is accomplished by passing a colors.LogNorm instance to the norm keyword
     # argument. `None` for linear scale:
     # http://matplotlib.org/api/axes_api.html#matplotlib.axes.Axes.pcolorfast
-    pyplot.hist2d(
-        series_x.values,
-        series_y.values,
-        bins=options.bins,
-        range=axis_range,
-        cmap=brewer2mpl.get_map('Greys', 'sequential', 9).mpl_colormap,
-        norm=color_norm)
+    if not options.nohist:
+        pyplot.hist2d(
+            series_x.values,
+            series_y.values,
+            bins=options.bins,
+            range=axis_range,
+            cmap=brewer2mpl.get_map('Greys', 'sequential', 9).mpl_colormap,
+            norm=color_norm)
+        pyplot.colorbar()
+    else:
+        # Via cmdline option, the user instructed to not plot a histogram, but
+        # a normal 2D plot instead.
+        pyplot.plot(
+            series_x.values,
+            series_y.values,
+            linestyle='None',
+            marker='x',
+            markerfacecolor='black',
+            color='black',
+            markersize=5
+            )
     pyplot.title(title)
     pyplot.xlabel(xlabel)
     pyplot.ylabel(ylabel)
-    pyplot.colorbar()
-    pyplot.plot(
-        expl_series_x,
-        expl_series_y,
-        linestyle='None',
-        marker='o',
-        markerfacecolor='blue',
-        markersize=7
-        )
+    if not len(expl_series_x) or not len(expl_series_y):
+        log.debug("expl_series_x/y empty. Don't plot explicit series.")
+    else:
+        pyplot.plot(
+            expl_series_x,
+            expl_series_y,
+            linestyle='None',
+            marker='o',
+            markerfacecolor='blue',
+            markersize=7
+            )
     if save_pdf:
         fn = "%s.pdf" % filename_wo_ext
         log.info("(Over)writing '%s'.", fn)
