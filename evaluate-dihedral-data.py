@@ -81,6 +81,13 @@ def main():
             "title for the entire plot. Other arguments to this option are "
             "ignored. This option can be specified multiple times in order to "
             "plot various data set pairs."))
+    parser.add_argument('-l', '--legend', action="store", nargs='+',
+        metavar=("'legend1'", "'legend2'"),
+        help=("Legend text to be added for these data points. Makes most "
+            "sense in combination with an additional dihedral data file. "
+            "First argument to this option is the legend for the main data. "
+            "The optional second argument is the legend for the additional "
+            "data."))
     parser.add_argument('--pdf', action="store_true", default=False,
         help=("Instead of displaying a figure, write a PDF file. The file is "
             "written to the current working directory. Its name is prepended "
@@ -223,6 +230,14 @@ def main():
             explicit_datapoints_merged_series = merge_dataseries_by_wildcards(
                 explicit_datapoints_df, merge_groups)
 
+    # Process 'legend' option.
+    options.legend_label_main = ""
+    options.legend_label_additional = ""
+    if options.legend is not None:
+        options.legend_label_main = options.legend[0]
+        if len(options.legend) > 1:
+            options.legend_label_additional = options.legend[1]
+
     # Plot 2D histogram if applicable.
     for twodim_hist_info in twodim_hist_infos:
         histogram_from_dataset_names(
@@ -351,6 +366,21 @@ def histogram_from_dataset_names(
         xlimits += shift_x_axis
         ylimits += shift_y_axis
 
+
+
+        log.info("X (%s, label: '%s') mean: %.3f stddev: %.3f",
+            series_x.name, options.legend_label_main, np.mean(series_x),
+            np.std(series_x))
+        log.info("Y (%s, label: '%s') mean: %.3f stddev: %.3f",
+            series_y.name, options.legend_label_main, np.mean(series_y),
+            np.std(series_y))
+        log.info("additional X (%s, label: '%s') mean: %.3f stddev: %.3f",
+            expl_series_x.name, options.legend_label_additional,
+            np.mean(expl_series_x), np.std(expl_series_x))
+        log.info("additional Y (%s, label: '%s') mean: %.3f stddev: %.3f",
+            expl_series_y.name, options.legend_label_additional,
+            np.mean(expl_series_y), np.std(expl_series_y))
+
         # x/y range can be overridden via command line.
         if options.x_range:
             log.info("Overriding x-range with %s (cmdline).", options.x_range)
@@ -443,6 +473,7 @@ def create_2d_hist(
         matplotlib.use("Agg")
     from matplotlib import pyplot
     import brewer2mpl
+
     log.info("Creating new figure.")
     fig = pyplot.figure()
     log.info("Calling 'hist2d', using %s bins.", options.bins)
@@ -458,7 +489,8 @@ def create_2d_hist(
             bins=options.bins,
             range=axis_range,
             cmap=brewer2mpl.get_map('Greys', 'sequential', 9).mpl_colormap,
-            norm=color_norm)
+            norm=color_norm,
+            label=options.legend_label_main,)
         pyplot.colorbar()
     else:
         # Via cmdline option, the user instructed to not plot a histogram, but
@@ -470,11 +502,14 @@ def create_2d_hist(
             marker='x',
             markerfacecolor='black',
             color='black',
-            markersize=5
+            markersize=5,
+            label=options.legend_label_main,
             )
     pyplot.title(title)
     pyplot.xlabel(xlabel)
     pyplot.ylabel(ylabel)
+    if options.legend_label_main:
+        pyplot.legend(loc='best', scatterpoints=1, numpoints=1)
     if not len(expl_series_x) or not len(expl_series_y):
         log.debug("expl_series_x/y empty. Don't plot explicit series.")
     else:
@@ -484,8 +519,11 @@ def create_2d_hist(
             linestyle='None',
             marker='o',
             markerfacecolor='blue',
-            markersize=7
+            markersize=7,
+            label=options.legend_label_additional,
             )
+        if options.legend_label_additional:
+            pyplot.legend(loc='best', scatterpoints=1, numpoints=1)
     if save_pdf:
         fn = "%s.pdf" % filename_wo_ext
         log.info("(Over)writing '%s'.", fn)
