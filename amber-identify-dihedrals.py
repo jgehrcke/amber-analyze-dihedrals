@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2013 Jan-Philip Gehrcke, TU Dresden
+# Copyright (C) 2013-2014 Jan-Philip Gehrcke, TU Dresden
 # http://gehrcke.de
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -459,6 +459,7 @@ def get_resids_for_resnames(config):
 
 
 def validate_config(config):
+    log.debug("Config object: %s", config)
     for dihedname in config:
         resnames = []
         for angle in  config[dihedname]:
